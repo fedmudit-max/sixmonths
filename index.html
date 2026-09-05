@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Momentum"/>
+  <meta name="theme-color" content="#faf9f7"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+  <title>Momentum</title>
+</head>
+<body>
+
+  <div id="splash">
+    <div class="sp-mark">⚡</div>
+    <div class="sp-quote" id="sp-q">You are becoming who you want to be.</div>
+    <div class="sp-prog"><div class="sp-fill"></div></div>
+  </div>
+
+  <div id="celebration">
+    <div class="cel-glow">✓</div>
+    <div class="cel-tag">Goal Complete</div>
+    <div class="cel-h">You did it.</div>
+    <div class="cel-g" id="cel-g"></div>
+    <button class="cel-btn" onclick="closeCel()">Continue →</button>
+  </div>
+
+  <nav>
+    <div class="logo">
+      <div class="logo-mark">⚡</div>
+      <div class="logo-name">Mo<span>mentum</span></div>
+    </div>
+    <div class="nav-r" id="nav-r"></div>
+  </nav>
+
+  <div id="pg-home" class="page show">
+    <div class="wrap">
+      <div class="home-top">
+        <div class="h-greet" id="greet"></div>
+        <div class="h-title">Your Goals</div>
+        <div class="h-sub" id="h-sub"></div>
+      </div>
+      <div id="goal-grid"></div>
+    </div>
+  </div>
+
+  <div id="pg-goal" class="page">
+    <div class="wrap" id="goal-c"></div>
+  </div>
+
+  <div id="pg-month" class="page">
+    <div class="wrap" id="month-c"></div>
+  </div>
+
+  <div class="ov" id="ov" onclick="if(event.target===this)closeMod()">
+    <div class="modal">
+      <div class="m-handle"></div>
+      <div class="pips" id="pips">
+        <div class="pip on" id="p1"></div>
+        <div class="pip" id="p2"></div>
+        <div class="pip" id="p3"></div>
+      </div>
+      <div id="m-body"></div>
+    </div>
+  </div>
+
+  <input type="file" id="imp-f" accept=".json,application/json" style="display:none" onchange="importD(event)"/>
+
+  <div id="ib">
+    <div class="ib-txt">
+      <b>Install Momentum</b>
+      <span>Tap Share → "Add to Home Screen" for the full app.</span>
+    </div>
+    <button class="ib-install" id="ib-install" onclick="promptInstall()">Install</button>
+    <button class="ib-x" onclick="dismissIB()" aria-label="Dismiss">✕</button>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
