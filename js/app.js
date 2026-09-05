@@ -504,10 +504,14 @@ function renderMonth() {
       (d, i) =>
         `<button class="ab${w.att[i] ? " on" : ""}${i === todayDi ? " today" : ""}" onclick="openDayEntry(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
     ).join("");
+  const weekFeedback = (w, weekIdx) =>
+    wSc(w) === 7
+      ? `<div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>`
+      : "";
   const det = (w, weekIdx) => `<div onclick="event.stopPropagation()">
     <div class="att-lbl">Attendance</div><div class="att-row">${atts(w, weekIdx)}</div>
     <div class="fl">Weekly Focus</div><input class="fi" value="${esc(w.focus)}" placeholder="What's your focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)"/>
-    <div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>
+    ${weekFeedback(w, weekIdx)}
   </div>`;
 
   let html = "";
@@ -535,7 +539,6 @@ function renderMonth() {
       <div class="mn-tag">Month ${m + 1} · ${m < 3 ? "Phase 1" : "Phase 2"}</div>
       <div class="mn-title">${esc(g.months[m]) || esc(g.name)}</div>
     </div>
-    ${g.atomicHabit ? `<div class="ah-card"><div class="ah-ico">⚡</div><div><div class="ah-label">Minimum daily habit</div><div class="ah-text">${esc(g.atomicHabit)}</div><div class="ah-sub">Do at least this to count the day ✓</div></div></div>` : ""}
     ${html}`;
 }
 
