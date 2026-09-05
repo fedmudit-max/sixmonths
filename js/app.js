@@ -7,6 +7,15 @@ import {
 } from "./pwa.js";
 
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 const KEY = "momentum_v4";
 const MAX = 5;
 const QUOTES = [
@@ -46,12 +55,22 @@ function mkWeeks() {
         t: "active",
         label: "Week " + (i + 1),
         att: [0, 0, 0, 0, 0, 0, 0],
+        entries: ["", "", "", "", "", "", ""],
         focus: "",
         feedback: "",
         repeat: null,
       });
   }
   return w;
+}
+
+function normalizeGoals(data) {
+  data.forEach((g) => {
+    g.weeks.forEach((w) => {
+      if (w.t === "active" && !w.entries) w.entries = Array(7).fill("");
+    });
+  });
+  return data;
 }
 
 function mkGoal(nm, id, big, p1, p2, months, sd, tf, tt, ah) {
@@ -63,7 +82,6 @@ function mkGoal(nm, id, big, p1, p2, months, sd, tf, tt, ah) {
     p1,
     p2,
     months: months || Array(6).fill(""),
-    checkins: Array(6).fill(""),
     weeks: mkWeeks(),
     startDate: sd || tod(),
     timeFrom: tf || "",
@@ -76,7 +94,7 @@ function tod() {
   return new Date().toISOString().split("T")[0];
 }
 
-let goals =
+let goals = normalizeGoals(
   load() ||
   [
     mkGoal(
@@ -98,7 +116,8 @@ let goals =
       "08:00",
       "15 mins of Duolingo"
     ),
-  ];
+  ]
+);
 let gId = null;
 let mIdx = null;
 let mStep = 1;
@@ -289,7 +308,7 @@ function importD(e) {
       const d = JSON.parse(ev.target.result);
       if (!d.goals || !Array.isArray(d.goals)) throw new Error();
       if (!confirm("Replace all data with this backup?")) return;
-      goals = d.goals;
+      goals = normalizeGoals(d.goals);
       save();
       showHome();
       alert("Imported!");
@@ -483,18 +502,12 @@ function renderMonth() {
   const atts = (w, weekIdx) =>
     DAYS.map(
       (d, i) =>
-        `<button class="ab${w.att[i] ? " on" : ""}${i === todayDi ? " today" : ""}" onclick="togDay(${weekIdx},${i})"><span>${d}</span><i></i></button>`
+        `<button class="ab${w.att[i] ? " on" : ""}${i === todayDi ? " today" : ""}" onclick="openDayEntry(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
     ).join("");
-  const yn = (w, weekIdx) => `<div class="fl">Would you repeat this approach?</div>
-    <div class="yn-r">
-      <button class="yn-b${w.repeat === 1 ? " yn-y" : ""}" onclick="setRep(${weekIdx},1)">👍 Yes, it worked</button>
-      <button class="yn-b${w.repeat === 0 ? " yn-n" : ""}" onclick="setRep(${weekIdx},0)">👎 Need to change</button>
-    </div>`;
   const det = (w, weekIdx) => `<div onclick="event.stopPropagation()">
     <div class="att-lbl">Attendance</div><div class="att-row">${atts(w, weekIdx)}</div>
     <div class="fl">Weekly Focus</div><input class="fi" value="${esc(w.focus)}" placeholder="What's your focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)"/>
     <div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>
-    ${yn(w, weekIdx)}
   </div>`;
 
   let html = "";
@@ -523,33 +536,48 @@ function renderMonth() {
       <div class="mn-title">${esc(g.months[m]) || esc(g.name)}</div>
     </div>
     ${g.atomicHabit ? `<div class="ah-card"><div class="ah-ico">⚡</div><div><div class="ah-label">Minimum daily habit</div><div class="ah-text">${esc(g.atomicHabit)}</div><div class="ah-sub">Do at least this to count the day ✓</div></div></div>` : ""}
-    <div class="ci-card"><div class="ci-label">📝 Month ${m + 1} check-in</div><textarea class="fi" rows="3" style="margin-bottom:0" placeholder="What did you learn this month?" oninput="saveCi(${m},this.value)">${esc(g.checkins[m])}</textarea></div>
     ${html}`;
 }
 
-function togDay(wi, di) {
+function openDayEntry(wi, di) {
   const g = goals.find((x) => x.id === gId);
-  g.weeks[wi].att[di] = g.weeks[wi].att[di] ? 0 : 1;
+  if (!g) return;
+  const w = g.weeks[wi];
+  if (!w.entries) w.entries = Array(7).fill("");
+
+  document.getElementById("pips").style.display = "none";
+  document.getElementById("ov").classList.add("open");
+  document.getElementById("m-body").innerHTML = `
+    <div class="m-title">${DAY_NAMES[di]}</div>
+    <div class="m-sub">${esc(w.label)}</div>
+    <label class="f-lbl">What did you do?</label>
+    <textarea class="f-inp" id="day-entry" rows="4" placeholder="What did you do today?" style="margin-bottom:20px">${esc(w.entries[di])}</textarea>
+    <div class="mf">
+      <button onclick="closeMod()">Cancel</button>
+      <button class="ms" onclick="saveDayEntry(${wi},${di})">Save ✓</button>
+    </div>`;
+  setTimeout(() => document.getElementById("day-entry")?.focus(), 100);
+}
+
+function saveDayEntry(wi, di) {
+  const g = goals.find((x) => x.id === gId);
+  if (!g) return;
+  const w = g.weeks[wi];
+  if (!w.entries) w.entries = Array(7).fill("");
+
+  const val = document.getElementById("day-entry").value.trim();
+  w.entries[di] = val;
+  w.att[di] = val ? 1 : 0;
   save();
+  closeMod();
   renderMonth();
+  renderHome();
   chkCel(g);
 }
 
 function saveFld(wi, f, v) {
   goals.find((x) => x.id === gId).weeks[wi][f] = v;
   save();
-}
-
-function saveCi(m, v) {
-  goals.find((x) => x.id === gId).checkins[m] = v;
-  save();
-}
-
-function setRep(wi, v) {
-  const g = goals.find((x) => x.id === gId);
-  g.weeks[wi].repeat = g.weeks[wi].repeat === v ? null : v;
-  save();
-  renderMonth();
 }
 
 function togExp(ek, wi) {
@@ -749,10 +777,9 @@ Object.assign(window, {
   showHome,
   openEdit,
   delGoal,
-  togDay,
+  openDayEntry,
+  saveDayEntry,
   saveFld,
-  saveCi,
-  setRep,
   togExp,
   mn,
   sg,
