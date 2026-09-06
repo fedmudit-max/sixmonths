@@ -528,13 +528,24 @@ function renderMonth() {
       )
       .join("");
   };
+  const todayLogBox = (w, weekIdx) => {
+    if (!w.entries) w.entries = Array(7).fill("");
+    const entry = w.entries[todayDi];
+    if (entry) {
+      return `<div class="day-logs"><div class="day-log today-log" onclick="openDayEntry(${weekIdx},${todayDi})"><span class="day-log-d">${DAYS[todayDi]}</span><span class="day-log-t">${esc(entry)}</span></div></div>`;
+    }
+    return `<div class="day-logs"><div class="day-log today-log empty" onclick="openDayEntry(${weekIdx},${todayDi})"><span class="day-log-placeholder">what have you done today?</span></div></div>`;
+  };
   const weekFocus = (w, weekIdx) =>
     `<input class="fi wk-focus" value="${esc(w.focus)}" placeholder="focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)" onclick="event.stopPropagation()"/>`;
-  const weekBody = (w, weekIdx) => {
-    const logs = dayLogs(w, weekIdx);
+  const weekBody = (w, weekIdx, isCurrentWeek) => {
+    const logs = isCurrentWeek ? todayLogBox(w, weekIdx) : (() => {
+      const all = dayLogs(w, weekIdx);
+      return all ? `<div class="day-logs">${all}</div>` : "";
+    })();
     return `<div class="wk-body" onclick="event.stopPropagation()">
     <div class="att-lbl">Attendance</div><div class="att-row">${atts(w, weekIdx)}</div>
-    ${logs ? `<div class="day-logs">${logs}</div>` : ""}
+    ${logs}
     ${weekFeedback(w, weekIdx)}
   </div>`;
   };
@@ -558,13 +569,13 @@ function renderMonth() {
     const ic = weekIdx === cwi;
     const scoreClass = sc >= 5 ? "ws-ok" : sc > 0 ? "ws-pt" : "ws-no";
     if (ic) {
-      html += `<div class="wk cur">${weekHdr(w, weekIdx, { pill: `<span class="pill pn">NOW</span>`, sc, scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx)}</div>`;
+      html += `<div class="wk cur">${weekHdr(w, weekIdx, { pill: `<span class="pill pn">NOW</span>`, sc, scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx, true)}</div>`;
     } else if (d7) {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: `<span class="pill pd">✓ Done</span>`, sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
+      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: `<span class="pill pd">✓ Done</span>`, sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx, false) : ""}</div>`;
     } else {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
+      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx, false) : ""}</div>`;
     }
   });
 
@@ -588,7 +599,7 @@ function openDayEntry(wi, di) {
     <div class="m-title">${DAY_NAMES[di]}</div>
     <div class="m-sub">${esc(w.label)}</div>
     <label class="f-lbl">What did you do?</label>
-    <textarea class="f-inp" id="day-entry" rows="4" placeholder="What did you do today?" style="margin-bottom:20px">${esc(w.entries[di])}</textarea>
+    <textarea class="f-inp" id="day-entry" rows="4" placeholder="what have you done today?" style="margin-bottom:20px">${esc(w.entries[di])}</textarea>
     <div class="mf">
       <button onclick="closeMod()">Cancel</button>
       <button class="ms" onclick="saveDayEntry(${wi},${di})">Save ✓</button>

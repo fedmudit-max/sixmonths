@@ -876,6 +876,17 @@ nav {
   word-break: break-word;
 }
 
+.day-log.empty {
+  min-height: 46px;
+  align-items: center;
+}
+
+.day-log-placeholder {
+  font-size: 13px;
+  color: var(--hi);
+  line-height: 1.4;
+}
+
 .wk-nm {
   font-weight: 700;
   font-size: 14px;
