@@ -101,8 +101,8 @@ let goals = normalizeGoals(
       "Learn Spanish",
       "I am someone who speaks Spanish fluently",
       "Reach A2 level in 6 months",
-      "Reach A1 level (Months 1–3)",
-      "Reach A2 level (Months 4–6)",
+      "Reach A1 level",
+      "Reach A2 level",
       [
         "Learn 200 words",
         "Basic sentences",
@@ -257,6 +257,16 @@ function fmtT(t) {
   const [h, m] = t.split(":");
   const hr = +h;
   return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
+}
+
+function phaseGoalText(txt, ph) {
+  const cleaned = String(txt || "")
+    .replace(
+      ph === 1 ? /\s*\(Months?\s*1[–-]3\)\s*$/i : /\s*\(Months?\s*4[–-]6\)\s*$/i,
+      ""
+    )
+    .trim();
+  return cleaned || "Set phase goal";
 }
 
 function splash() {
@@ -451,7 +461,7 @@ function renderGoal() {
       })
       .join("");
     return `<div class="ph-block${pd ? " done" : ""}">
-      <div class="ph-hdr"><div class="ph-tag">${lbl}${pd ? " · ✓ Complete" : ""}</div><div class="ph-goal">${esc(txt) || "Set phase goal"}</div></div>
+      <div class="ph-hdr"><div class="ph-tag">${lbl}${pd ? " · ✓ Complete" : ""}</div><div class="ph-goal">${esc(phaseGoalText(txt, ph))}</div></div>
       <div class="ph-months">${cards}</div>
     </div>`;
   }
@@ -508,11 +518,34 @@ function renderMonth() {
     wSc(w) === 7
       ? `<div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>`
       : "";
-  const det = (w, weekIdx) => `<div onclick="event.stopPropagation()">
+  const dayLogs = (w, weekIdx) => {
+    if (!w.entries) return "";
+    return w.entries
+      .map((entry, i) =>
+        entry
+          ? `<div class="day-log" onclick="openDayEntry(${weekIdx},${i})"><span class="day-log-d">${DAYS[i]}</span><span class="day-log-t">${esc(entry)}</span></div>`
+          : ""
+      )
+      .join("");
+  };
+  const weekFocus = (w, weekIdx) =>
+    `<input class="fi wk-focus" value="${esc(w.focus)}" placeholder="focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)" onclick="event.stopPropagation()"/>`;
+  const weekBody = (w, weekIdx) => {
+    const logs = dayLogs(w, weekIdx);
+    return `<div class="wk-body" onclick="event.stopPropagation()">
     <div class="att-lbl">Attendance</div><div class="att-row">${atts(w, weekIdx)}</div>
-    <div class="fl">Weekly Focus</div><input class="fi" value="${esc(w.focus)}" placeholder="What's your focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)"/>
+    ${logs ? `<div class="day-logs">${logs}</div>` : ""}
     ${weekFeedback(w, weekIdx)}
   </div>`;
+  };
+  const weekHdr = (w, weekIdx, { pill, sc, scoreClass, toggle, expanded, collapsible, ek }) =>
+    `<div class="wk-hdr open">
+      <div class="wk-hdr-row"${collapsible ? ` style="cursor:pointer" onclick="togExp('${ek}',${weekIdx})"` : ""}>
+        <div class="wk-nm">${w.label}${pill}</div>
+        ${expanded ? weekFocus(w, weekIdx) : ""}
+        <div class="wk-hdr-r"><span class="ws ${scoreClass}">${sc}/7</span>${toggle || ""}</div>
+      </div>
+    </div>`;
 
   let html = "";
   sorted.forEach(({ w, wi: weekIdx }) => {
@@ -523,14 +556,15 @@ function renderMonth() {
     const sc = wSc(w);
     const d7 = isDone(w);
     const ic = weekIdx === cwi;
+    const scoreClass = sc >= 5 ? "ws-ok" : sc > 0 ? "ws-pt" : "ws-no";
     if (ic) {
-      html += `<div class="wk cur"><div class="wk-hdr open"><div class="wk-nm">${w.label}<span class="pill pn">NOW</span></div><span class="ws ${sc >= 5 ? "ws-ok" : sc > 0 ? "ws-pt" : "ws-no"}">${sc}/7</span></div>${det(w, weekIdx)}</div>`;
+      html += `<div class="wk cur">${weekHdr(w, weekIdx, { pill: `<span class="pill pn">NOW</span>`, sc, scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx)}</div>`;
     } else if (d7) {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk ok"><div class="wk-hdr${ie ? " open" : ""}" style="cursor:pointer" onclick="togExp('${ek}',${weekIdx})"><div class="wk-nm">${w.label}<span class="pill pd">✓ Done</span></div><div style="display:flex;align-items:center;gap:6px"><span class="ws ws-ok">${sc}/7</span><span class="tog">${ie ? "▲" : "▼"}</span></div></div>${ie ? det(w, weekIdx) : ""}</div>`;
+      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: `<span class="pill pd">✓ Done</span>`, sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
     } else {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk" style="opacity:.5"><div class="wk-hdr${ie ? " open" : ""}" style="cursor:pointer" onclick="togExp('${ek}',${weekIdx})"><div class="wk-nm">${w.label}</div><div style="display:flex;align-items:center;gap:6px"><span class="ws ws-no">${sc}/7</span><span class="tog">${ie ? "▲" : "▼"}</span></div></div>${ie ? det(w, weekIdx) : ""}</div>`;
+      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
     }
   });
 
