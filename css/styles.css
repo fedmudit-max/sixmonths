@@ -853,6 +853,22 @@ nav {
   border-radius: 10px;
   padding: 9px 11px;
   cursor: pointer;
+  flex-wrap: wrap;
+}
+
+.day-log.st-done {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+}
+
+.day-log.st-rest {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+}
+
+.day-log.st-busy {
+  background: var(--am-l);
+  border-color: var(--am-b);
 }
 
 .day-log:active {
@@ -885,6 +901,84 @@ nav {
   font-size: 13px;
   color: var(--hi);
   line-height: 1.4;
+}
+
+.day-log-tag {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 6px;
+  padding: 2px 7px;
+  flex-shrink: 0;
+}
+
+.tag-rest {
+  background: var(--gn-b);
+  border: 1px solid var(--gn-br);
+  color: var(--gn);
+}
+
+.tag-busy {
+  background: var(--am-l);
+  border: 1px solid var(--am-b);
+  color: var(--am);
+}
+
+.tag-done {
+  background: var(--ac-l);
+  border: 1px solid var(--ac-m);
+  color: var(--ac);
+}
+
+.day-status-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 14px;
+}
+
+.day-pick-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.day-pick-btn {
+  flex: 1;
+  height: 52px;
+  border-radius: 12px;
+  border: 1.5px solid var(--b1);
+  background: var(--s2);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tx);
+  transition: all 0.15s;
+}
+
+.day-pick-btn:active {
+  transform: scale(0.96);
+}
+
+.dp-rest {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+  color: var(--gn);
+}
+
+.dp-busy {
+  background: var(--am-l);
+  border-color: var(--am-b);
+  color: var(--am);
+}
+
+.dp-done {
+  background: var(--ac-l);
+  border-color: var(--ac-m);
+  color: var(--ac);
 }
 
 .wk-nm {
@@ -1018,6 +1112,32 @@ nav {
 
 .ab.on i {
   background: rgba(255, 255, 255, 0.5);
+}
+
+.ab.st-rest {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+}
+
+.ab.st-rest span {
+  color: var(--gn);
+}
+
+.ab.st-rest i {
+  background: var(--gn-br);
+}
+
+.ab.st-busy {
+  background: var(--am-l);
+  border-color: var(--am-b);
+}
+
+.ab.st-busy span {
+  color: var(--am);
+}
+
+.ab.st-busy i {
+  background: var(--am-b);
 }
 
 .ab:active {
@@ -1171,6 +1291,41 @@ nav {
   margin-bottom: 3px;
 }
 
+.m-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.m-top .m-title {
+  margin-bottom: 3px;
+}
+
+.m-top .m-sub {
+  margin-bottom: 0;
+}
+
+.m-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--b1);
+  background: var(--s2);
+  border-radius: 10px;
+  color: var(--hi);
+  font-size: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.m-close:active {
+  transform: scale(0.95);
+  background: var(--s3);
+}
+
 .m-sub {
   font-size: 13px;
   color: var(--hi);
@@ -1278,6 +1433,13 @@ nav {
   font-weight: 700;
   font-size: 15px;
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+}
+
+.mf .mr {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+  color: var(--gn);
+  font-weight: 700;
 }
 
 .set-btn {

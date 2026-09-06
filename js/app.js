@@ -56,6 +56,7 @@ function mkWeeks() {
         label: "Week " + (i + 1),
         att: [0, 0, 0, 0, 0, 0, 0],
         entries: ["", "", "", "", "", "", ""],
+        dayStatus: ["", "", "", "", "", "", ""],
         focus: "",
         feedback: "",
         repeat: null,
@@ -67,11 +68,29 @@ function mkWeeks() {
 function normalizeGoals(data) {
   data.forEach((g) => {
     g.weeks.forEach((w) => {
-      if (w.t === "active" && !w.entries) w.entries = Array(7).fill("");
+      if (w.t !== "active") return;
+      if (!w.entries) w.entries = Array(7).fill("");
+      if (!w.dayStatus) {
+        w.dayStatus = Array(7).fill("");
+        w.entries.forEach((entry, i) => {
+          if (entry) w.dayStatus[i] = w.att[i] ? "done" : "";
+        });
+      }
     });
   });
   return data;
 }
+
+function ensureWeekDay(w) {
+  if (!w.entries) w.entries = Array(7).fill("");
+  if (!w.dayStatus) w.dayStatus = Array(7).fill("");
+}
+
+const DAY_STATUS = {
+  rest: { label: "Rest", placeholder: "Why are you resting today?" },
+  busy: { label: "Busy", placeholder: "What kept you busy?" },
+  done: { label: "Done", placeholder: "What did you accomplish?" },
+};
 
 function mkGoal(nm, id, big, p1, p2, months, sd, tf, tt, ah) {
   return {
@@ -509,32 +528,46 @@ function renderMonth() {
   const sorted = [...(ci ? [ci] : []), ...di, ...fi, ...ri];
 
   const todayDi = new Date().getDay();
+  const formatDayLog = (w, weekIdx, i, extraClass = "") => {
+    ensureWeekDay(w);
+    const entry = w.entries[i];
+    const st = w.dayStatus[i];
+    if (!st && !entry) return "";
+    const tag = st ? `<span class="day-log-tag tag-${st}">${DAY_STATUS[st]?.label || st}</span>` : "";
+    const text = entry ? `<span class="day-log-t">${esc(entry)}</span>` : "";
+    return `<div class="day-log ${extraClass} st-${st || "none"}" onclick="openDayEntry(${weekIdx},${i})"><span class="day-log-d">${DAYS[i]}</span>${tag}${text}</div>`;
+  };
+  const dayBtnClass = (w, i) => {
+    ensureWeekDay(w);
+    let cls = "ab";
+    const st = w.dayStatus[i];
+    if (st === "done") cls += " on";
+    else if (st === "rest") cls += " st-rest";
+    else if (st === "busy") cls += " st-busy";
+    if (i === todayDi) cls += " today";
+    return cls;
+  };
   const atts = (w, weekIdx) =>
     DAYS.map(
       (d, i) =>
-        `<button class="ab${w.att[i] ? " on" : ""}${i === todayDi ? " today" : ""}" onclick="openDayEntry(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
+        `<button class="${dayBtnClass(w, i)}" onclick="openDayEntry(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
     ).join("");
   const weekFeedback = (w, weekIdx) =>
     wSc(w) === 7
       ? `<div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>`
       : "";
   const dayLogs = (w, weekIdx) => {
-    if (!w.entries) return "";
-    return w.entries
-      .map((entry, i) =>
-        entry
-          ? `<div class="day-log" onclick="openDayEntry(${weekIdx},${i})"><span class="day-log-d">${DAYS[i]}</span><span class="day-log-t">${esc(entry)}</span></div>`
-          : ""
-      )
-      .join("");
+    ensureWeekDay(w);
+    return Array.from({ length: 7 }, (_, i) => formatDayLog(w, weekIdx, i)).join("");
   };
   const todayLogBox = (w, weekIdx) => {
-    if (!w.entries) w.entries = Array(7).fill("");
+    ensureWeekDay(w);
     const entry = w.entries[todayDi];
-    if (entry) {
-      return `<div class="day-logs"><div class="day-log today-log" onclick="openDayEntry(${weekIdx},${todayDi})"><span class="day-log-d">${DAYS[todayDi]}</span><span class="day-log-t">${esc(entry)}</span></div></div>`;
+    const st = w.dayStatus[todayDi];
+    if (st || entry) {
+      return `<div class="day-logs">${formatDayLog(w, weekIdx, todayDi, "today-log")}</div>`;
     }
-    return `<div class="day-logs"><div class="day-log today-log empty" onclick="openDayEntry(${weekIdx},${todayDi})"><span class="day-log-placeholder">what have you done today?</span></div></div>`;
+    return `<div class="day-logs"><div class="day-log today-log empty" onclick="openDayEntry(${weekIdx},${todayDi})"><span class="day-log-placeholder">What did you do?</span></div></div>`;
   };
   const weekFocus = (w, weekIdx) =>
     `<input class="fi wk-focus" value="${esc(w.focus)}" placeholder="focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)" onclick="event.stopPropagation()"/>`;
@@ -587,35 +620,85 @@ function renderMonth() {
     ${html}`;
 }
 
+function dayEntryHeader(w, di) {
+  return `<div class="m-top">
+      <div>
+        <div class="m-title">${DAY_NAMES[di]}</div>
+        <div class="m-sub">${esc(w.label)}</div>
+      </div>
+      <button class="m-close" onclick="closeMod()" aria-label="Close">✕</button>
+    </div>`;
+}
+
 function openDayEntry(wi, di) {
   const g = goals.find((x) => x.id === gId);
   if (!g) return;
   const w = g.weeks[wi];
-  if (!w.entries) w.entries = Array(7).fill("");
+  ensureWeekDay(w);
 
   document.getElementById("pips").style.display = "none";
   document.getElementById("ov").classList.add("open");
+
+  if (w.dayStatus[di]) {
+    renderDayEntryNote(wi, di, w.dayStatus[di]);
+  } else {
+    renderDayEntryPick(wi, di);
+  }
+}
+
+function renderDayEntryPick(wi, di) {
+  const g = goals.find((x) => x.id === gId);
+  if (!g) return;
+  const w = g.weeks[wi];
+
   document.getElementById("m-body").innerHTML = `
-    <div class="m-title">${DAY_NAMES[di]}</div>
-    <div class="m-sub">${esc(w.label)}</div>
-    <label class="f-lbl">What did you do?</label>
-    <textarea class="f-inp" id="day-entry" rows="4" placeholder="what have you done today?" style="margin-bottom:20px">${esc(w.entries[di])}</textarea>
+    ${dayEntryHeader(w, di)}
+    <div class="f-lbl" style="margin-bottom:12px">What did you do?</div>
+    <div class="day-pick-btns">
+      <button class="day-pick-btn dp-rest" onclick="pickDayStatus(${wi},${di},'rest')">Rest</button>
+      <button class="day-pick-btn dp-busy" onclick="pickDayStatus(${wi},${di},'busy')">Busy</button>
+      <button class="day-pick-btn dp-done" onclick="pickDayStatus(${wi},${di},'done')">Done</button>
+    </div>`;
+}
+
+function pickDayStatus(wi, di, status) {
+  renderDayEntryNote(wi, di, status);
+}
+
+function renderDayEntryNote(wi, di, status) {
+  const g = goals.find((x) => x.id === gId);
+  if (!g) return;
+  const w = g.weeks[wi];
+  ensureWeekDay(w);
+  const meta = DAY_STATUS[status];
+  if (!meta) return;
+
+  document.getElementById("m-body").innerHTML = `
+    ${dayEntryHeader(w, di)}
+    <div class="day-status-pill tag-${status}">${meta.label}</div>
+    <textarea class="f-inp" id="day-entry" rows="4" placeholder="${esc(meta.placeholder)}" style="margin-bottom:20px">${esc(w.dayStatus[di] === status ? w.entries[di] : "")}</textarea>
     <div class="mf">
-      <button onclick="closeMod()">Cancel</button>
-      <button class="ms" onclick="saveDayEntry(${wi},${di})">Save ✓</button>
+      <button onclick="renderDayEntryPick(${wi},${di})">← Back</button>
+      <button class="ms" onclick="saveDayEntry(${wi},${di},'${status}')">Save ✓</button>
     </div>`;
   setTimeout(() => document.getElementById("day-entry")?.focus(), 100);
 }
 
-function saveDayEntry(wi, di) {
+function saveDayEntry(wi, di, status) {
   const g = goals.find((x) => x.id === gId);
   if (!g) return;
   const w = g.weeks[wi];
-  if (!w.entries) w.entries = Array(7).fill("");
+  ensureWeekDay(w);
 
   const val = document.getElementById("day-entry").value.trim();
+  if (!val) {
+    alert("Please add a note before saving.");
+    return;
+  }
+
   w.entries[di] = val;
-  w.att[di] = val ? 1 : 0;
+  w.dayStatus[di] = status;
+  w.att[di] = status === "done" ? 1 : 0;
   save();
   closeMod();
   renderMonth();
@@ -826,6 +909,9 @@ Object.assign(window, {
   openEdit,
   delGoal,
   openDayEntry,
+  pickDayStatus,
+  renderDayEntryPick,
+  renderDayEntryNote,
   saveDayEntry,
   saveFld,
   togExp,
