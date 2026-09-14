@@ -18,6 +18,7 @@ const DAY_NAMES = [
 ];
 const KEY = "momentum_v4";
 const MAX = 5;
+const WEEK_TARGET = 5;
 const QUOTES = [
   "Small steps taken daily <em>beat big leaps taken rarely.</em>",
   "You don't rise to your goals. <em>You fall to your systems.</em>",
@@ -46,10 +47,13 @@ function load() {
   }
 }
 
-function mkWeeks() {
+function mkWeeks(duration) {
+  duration = duration === 3 ? 3 : 6;
+  const total = duration === 3 ? 13 : 26;
+  const rests = duration === 3 ? [12] : [12, 25];
   const w = [];
-  for (let i = 0; i < 26; i++) {
-    if (i === 12 || i === 25) w.push({ t: "rest", label: "Week " + (i + 1) });
+  for (let i = 0; i < total; i++) {
+    if (rests.includes(i)) w.push({ t: "rest", label: "Week " + (i + 1) });
     else
       w.push({
         t: "active",
@@ -65,8 +69,55 @@ function mkWeeks() {
   return w;
 }
 
+function goalDuration(g) {
+  return g.duration === 3 ? 3 : 6;
+}
+
+function monthCount(g) {
+  return goalDuration(g) === 3 ? 3 : 6;
+}
+
+function phaseMonths(g, ph) {
+  return goalDuration(g) === 3
+    ? ph === 1
+      ? [0]
+      : [1, 2]
+    : ph === 1
+      ? [0, 1, 2]
+      : [3, 4, 5];
+}
+
+function phaseLabel(g, ph) {
+  if (goalDuration(g) === 3) {
+    return ph === 1 ? "Phase 1 · Month 1" : "Phase 2 · Months 2–3";
+  }
+  return ph === 1 ? "Phase 1 · Months 1–3" : "Phase 2 · Months 4–6";
+}
+
+function bigGoalLabel(g) {
+  return goalDuration(g) === 3 ? "3-month big goal" : "6-month big goal";
+}
+
+const BLOCK_LABELS_3 = ["Week 1–4", "Week 5–8", "Week 9–12"];
+
+function blockLabel(g, m) {
+  if (goalDuration(g) === 3) return BLOCK_LABELS_3[m] || `Week ${m + 1}`;
+  return `Month ${m + 1}`;
+}
+
+function curBlock(g) {
+  for (let m = 0; m < monthCount(g); m++) if (!mDone(g, m)) return m;
+  return null;
+}
+
+function modSteps() {
+  return modDur() === 3 ? 2 : 3;
+}
+
 function normalizeGoals(data) {
   data.forEach((g) => {
+    if (!g.duration) g.duration = 6;
+    while (g.months.length < monthCount(g)) g.months.push("");
     g.weeks.forEach((w) => {
       if (w.t !== "active") return;
       if (!w.entries) w.entries = Array(7).fill("");
@@ -99,10 +150,11 @@ function dayStatusClass(st, base) {
   return base;
 }
 
-function attBtnClass(w, i, todayDi) {
+function attBtnClass(w, i, todayDi, weekIdx) {
   ensureWeekDay(w);
   let cls = dayStatusClass(w.dayStatus[i], "ab");
   if (i === todayDi) cls += " today";
+  if (weekIdx !== undefined && i === getSelDay(weekIdx)) cls += " sel";
   return cls;
 }
 
@@ -113,30 +165,19 @@ function homeDotClass(w, i, todayDi) {
   return cls;
 }
 
-function homeTodayLine(w) {
-  if (!w || w.t !== "active") return "";
-  ensureWeekDay(w);
-  const todayDi = new Date().getDay();
-  const st = w.dayStatus[todayDi];
-  const entry = w.entries[todayDi];
-  if (!st && !entry) {
-    return `<div class="gc-today empty"><span class="gc-today-placeholder">What did you do?</span></div>`;
-  }
-  const tag = st ? `<span class="day-log-tag tag-${st}">${DAY_STATUS[st].label}</span>` : "";
-  const text = entry ? `<span class="gc-today-t">${esc(entry)}</span>` : "";
-  return `<div class="gc-today st-${st || "none"}">${tag}${text}</div>`;
-}
-
-function mkGoal(nm, id, big, p1, p2, months, sd, tf, tt, ah) {
+function mkGoal(nm, id, big, p1, p2, months, sd, tf, tt, ah, duration) {
+  duration = duration === 3 ? 3 : 6;
+  const mc = duration === 3 ? 3 : 6;
   return {
     id: (Date.now() + Math.random()) | 0,
     name: nm,
     identity: id,
     big,
+    duration,
     p1,
     p2,
-    months: months || Array(6).fill(""),
-    weeks: mkWeeks(),
+    months: (months || Array(mc).fill("")).slice(0, mc),
+    weeks: mkWeeks(duration),
     startDate: sd || tod(),
     timeFrom: tf || "",
     timeTo: tt || "",
@@ -176,8 +217,46 @@ let gId = null;
 let mIdx = null;
 let mStep = 1;
 let mData = {};
+
+function modDur() {
+  return mData.duration === 3 ? 3 : 6;
+}
+
+function setDuration(d) {
+  if (mStep === 1) {
+    mData = {
+      ...mData,
+      duration: d === 3 ? 3 : 6,
+      name: document.getElementById("fn")?.value.trim() || mData.name,
+      identity: document.getElementById("fi")?.value.trim() || mData.identity,
+      big: document.getElementById("fb")?.value.trim() || mData.big,
+      startDate: document.getElementById("fsd")?.value || mData.startDate,
+      timeFrom: document.getElementById("ftf")?.value || mData.timeFrom,
+      timeTo: document.getElementById("ftt")?.value || mData.timeTo,
+      atomicHabit: document.getElementById("fah")?.value.trim() || mData.atomicHabit,
+    };
+  } else {
+    mData.duration = d === 3 ? 3 : 6;
+  }
+  renderMod();
+}
 if (!window._exp) window._exp = {};
 if (!window._sc) window._sc = {};
+if (!window._selDay) window._selDay = {};
+
+function selDayKey(weekIdx) {
+  return `${gId}_${weekIdx}`;
+}
+
+function getSelDay(weekIdx) {
+  const k = selDayKey(weekIdx);
+  if (window._selDay[k] !== undefined) return window._selDay[k];
+  return new Date().getDay();
+}
+
+function setSelDay(weekIdx, di) {
+  window._selDay[selDayKey(weekIdx)] = di;
+}
 
 function nav(route, params, rep) {
   const cur = document.querySelector(".page.show");
@@ -227,14 +306,16 @@ function curWk(g) {
   const s = new Date(g.startDate);
   const n = new Date();
   const diff = Math.max(0, Math.floor((n - s) / (7 * 24 * 60 * 60 * 1000)));
+  const total = goalDuration(g) === 3 ? 13 : 26;
+  const maxActive = goalDuration(g) === 3 ? 12 : 23;
   let a = 0;
   let i = 0;
-  while (i < 26) {
+  while (i < total) {
     if (g.weeks[i].t === "rest") {
       i++;
       continue;
     }
-    if (a === Math.min(diff, 23)) return i;
+    if (a === Math.min(diff, maxActive)) return i;
     a++;
     i++;
   }
@@ -246,17 +327,34 @@ function wSc(w) {
 }
 
 function isDone(w) {
-  return w.t === "active" && wSc(w) === 7;
+  return w.t === "active" && wSc(w) >= WEEK_TARGET;
+}
+
+function weekScoreClass(sc) {
+  if (sc >= WEEK_TARGET) return "ws-ok";
+  if (sc > 0) return "ws-pt";
+  return "ws-no";
 }
 
 function gPct(g) {
   const aw = g.weeks.filter((w) => w.t === "active");
   return Math.round(
-    (aw.reduce((s, w) => s + w.att.filter(Boolean).length, 0) / (aw.length * 7)) * 100
+    (aw.reduce((s, w) => s + Math.min(wSc(w), WEEK_TARGET), 0) /
+      (aw.length * WEEK_TARGET)) *
+      100
   );
 }
 
 function mWks(g, m) {
+  if (goalDuration(g) === 3) {
+    const maps = [
+      { ws: 0, end: 4 },
+      { ws: 4, end: 8 },
+      { ws: 8, end: 12 },
+    ];
+    const { ws, end } = maps[m];
+    return { ws, mw: g.weeks.slice(ws, end) };
+  }
   const ps = m < 3 ? 0 : 13;
   const ws = ps + (m < 3 ? m : m - 3) * 4;
   return { ws, mw: g.weeks.slice(ws, ws + 4) };
@@ -265,10 +363,10 @@ function mWks(g, m) {
 function mPct(g, m) {
   const { mw } = mWks(g, m);
   const d = mw.reduce(
-    (s, w) => s + (w.t === "active" ? w.att.filter(Boolean).length : 0),
+    (s, w) => s + (w.t === "active" ? Math.min(wSc(w), WEEK_TARGET) : 0),
     0
   );
-  const x = mw.filter((w) => w.t === "active").length * 7;
+  const x = mw.filter((w) => w.t === "active").length * WEEK_TARGET;
   return x ? Math.round((d / x) * 100) : 0;
 }
 
@@ -278,15 +376,14 @@ function mDone(g, m) {
 }
 
 function phDone(g, ph) {
-  for (let m = ph === 1 ? 0 : 3; m < (ph === 1 ? 3 : 6); m++)
-    if (!mDone(g, m)) return false;
+  for (const m of phaseMonths(g, ph)) if (!mDone(g, m)) return false;
   return true;
 }
 
 function curMo(g, ph) {
   if (phDone(g, 1) && ph === 1) return null;
   if (!phDone(g, 1) && ph === 2) return null;
-  for (let m = ph === 1 ? 0 : 3; m < (ph === 1 ? 3 : 6); m++) if (!mDone(g, m)) return m;
+  for (const m of phaseMonths(g, ph)) if (!mDone(g, m)) return m;
   return null;
 }
 
@@ -313,10 +410,16 @@ function fmtT(t) {
   return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? "PM" : "AM"}`;
 }
 
-function phaseGoalText(txt, ph) {
+function phaseGoalText(txt, ph, g) {
   const cleaned = String(txt || "")
     .replace(
-      ph === 1 ? /\s*\(Months?\s*1[–-]3\)\s*$/i : /\s*\(Months?\s*4[–-]6\)\s*$/i,
+      goalDuration(g) === 3
+        ? ph === 1
+          ? /\s*\(Month?\s*1\)\s*$/i
+          : /\s*\(Months?\s*2[–-]3\)\s*$/i
+        : ph === 1
+          ? /\s*\(Months?\s*1[–-]3\)\s*$/i
+          : /\s*\(Months?\s*4[–-]6\)\s*$/i,
       ""
     )
     .trim();
@@ -427,7 +530,6 @@ function renderHome() {
           ? DAYS.map((d, i) => `<div class="${homeDotClass(cw, i, todayDi)}">${d}</div>`).join("")
           : DAYS.map((d) => `<div class="dc">${d}</div>`).join("");
       const wd = cw && cw.t === "active" ? wSc(cw) : 0;
-      const todayLine = homeTodayLine(cw);
       const timePill =
         g.timeFrom && g.timeTo
           ? `<div class="gc-pill gc-pill-time">🕐 ${fmtT(g.timeFrom)}–${fmtT(g.timeTo)}</div>`
@@ -454,7 +556,7 @@ function renderHome() {
           </div>
         </div>
       </div>
-      <div class="gc-footer">${dots}<span class="gc-wk-label">${wd}/7 · Wk ${wi + 1}</span>${todayLine}</div>
+      <div class="gc-footer">${dots}<span class="gc-wk-label">${Math.min(wd, WEEK_TARGET)}/${WEEK_TARGET} · Wk ${wi + 1}</span></div>
     </div>`;
     })
     .join("");
@@ -480,12 +582,55 @@ function renderGoal() {
   const g = goals.find((x) => x.id === gId);
   if (!g) return;
 
+  if (goalDuration(g) === 3) {
+    const cm = curBlock(g);
+    const blocks = [0, 1, 2];
+    const cur = blocks.filter((m) => m === cm);
+    const done = blocks.filter((m) => mDone(g, m)).sort((a, b) => b - a);
+    const fut = blocks.filter((m) => !mDone(g, m) && m !== cm);
+    const sorted = cm === null ? done.concat(fut) : cur.concat(done, fut);
+
+    document.getElementById("goal-c").innerHTML = sorted
+      .map((m, i) => {
+        const mp = mPct(g, m);
+        const md = mDone(g, m);
+        const ic = m === cm;
+        const lbl = blockLabel(g, m);
+        const bc = md ? "var(--gn-br)" : ic ? "var(--ac)" : "var(--b1)";
+        const bg = md ? "var(--gn-b)" : ic ? "rgba(79,70,229,.03)" : "var(--s2)";
+        const nb = md ? "var(--gn)" : ic ? "var(--ac)" : "var(--s1)";
+        const nc = md || ic ? "#fff" : "var(--mu)";
+        const op = !ic && !md && cm !== null ? "opacity:.45" : "";
+        const block = `<div class="ph-block${md ? " done" : ""}">
+      <div class="ph-months">
+        <div class="mc" style="border-color:${bc};background:${bg};${op}" onclick="showMonth(${m})">
+        <div class="mc-l">
+          <div class="mc-badge" style="background:${nb};border-color:${nb};color:${nc}">${md ? "✓" : m + 1}</div>
+          <div>
+            <div class="mc-nm">${lbl}</div>
+            <div class="mc-gl">${esc(g.months[m]) || "Tap to set goal"}</div>
+          </div>
+        </div>
+        <div class="mc-r">
+          <span class="mc-pct" style="color:${md ? "var(--gn)" : ic ? "var(--ac)" : "var(--hi)"}">${mp}%</span>
+          ${ring(mp, 30, 3, md ? "#15803d" : ic ? "#4f46e5" : "#b0ac9e", md ? "rgba(21,128,61,.1)" : ic ? "rgba(79,70,229,.1)" : "rgba(176,172,158,.1)")}
+          <span class="mc-arr">›</span>
+        </div>
+      </div>
+      </div>
+    </div>`;
+        return i ? `<div style="margin-top:10px">${block}</div>` : block;
+      })
+      .join("");
+    return;
+  }
+
   function phase(ph) {
     const pd = phDone(g, ph);
     const cm = curMo(g, ph);
-    const lbl = ph === 1 ? "Phase 1 · Months 1–3" : "Phase 2 · Months 4–6";
+    const lbl = phaseLabel(g, ph);
     const txt = ph === 1 ? g.p1 : g.p2;
-    const ms = Array.from({ length: 3 }, (_, i) => (ph === 1 ? i : i + 3));
+    const ms = phaseMonths(g, ph);
     const cur = ms.filter((m) => m === cm);
     const done = ms.filter((m) => mDone(g, m)).sort((a, b) => b - a);
     const fut = ms.filter((m) => !mDone(g, m) && m !== cm);
@@ -517,7 +662,7 @@ function renderGoal() {
       })
       .join("");
     return `<div class="ph-block${pd ? " done" : ""}">
-      <div class="ph-hdr"><div class="ph-tag">${lbl}${pd ? " · ✓ Complete" : ""}</div><div class="ph-goal">${esc(phaseGoalText(txt, ph))}</div></div>
+      <div class="ph-hdr"><div class="ph-tag">${lbl}${pd ? " · ✓ Complete" : ""}</div><div class="ph-goal">${esc(phaseGoalText(txt, ph, g))}</div></div>
       <div class="ph-months">${cards}</div>
     </div>`;
   }
@@ -542,8 +687,12 @@ function renderMonth() {
 
   const { ws, mw } = mWks(g, m);
   const aw = [...mw];
-  if (m === 2) aw.push(g.weeks[12]);
-  if (m === 5) aw.push(g.weeks[25]);
+  if (goalDuration(g) === 6) {
+    if (m === 2) aw.push(g.weeks[12]);
+    if (m === 5) aw.push(g.weeks[25]);
+  } else if (m === 2) {
+    aw.push(g.weeks[12]);
+  }
 
   const ek = `${gId}_${m}`;
   if (!window._exp[ek]) window._exp[ek] = {};
@@ -565,47 +714,41 @@ function renderMonth() {
   const sorted = [...(ci ? [ci] : []), ...di, ...fi, ...ri];
 
   const todayDi = new Date().getDay();
-  const formatDayLog = (w, weekIdx, i, extraClass = "") => {
+  const weekTargetHint = (w) => {
+    const left = WEEK_TARGET - wSc(w);
+    if (left <= 0) return "";
+    return `<div class="wk-target-lbl">${left} day${left === 1 ? "" : "s"} remaining for a successful week</div>`;
+  };
+  const dayLogSlot = (w, weekIdx) => {
     ensureWeekDay(w);
-    const entry = w.entries[i];
-    const st = w.dayStatus[i];
-    if (!st && !entry) return "";
-    const tag = st ? `<span class="day-log-tag tag-${st}">${DAY_STATUS[st]?.label || st}</span>` : "";
-    const text = entry ? `<span class="day-log-t">${esc(entry)}</span>` : "";
-    return `<div class="day-log ${extraClass} st-${st || "none"}" onclick="openDayEntry(${weekIdx},${i})"><span class="day-log-d">${DAYS[i]}</span>${tag}${text}</div>`;
+    const di = getSelDay(weekIdx);
+    const entry = w.entries[di];
+    const st = w.dayStatus[di];
+    const hint = weekTargetHint(w);
+    if (st && entry) {
+      return `<div class="day-logs"><div class="day-slot st-${st}">
+        <button class="day-slot-edit" onclick="event.stopPropagation();editDayEntry(${weekIdx},${di})" aria-label="Edit entry">✏️</button>
+        <span class="day-log-tag tag-${st}">${DAY_STATUS[st].label}</span>
+        <div class="day-slot-text">${esc(entry)}</div>
+      </div>${hint}</div>`;
+    }
+    return `<div class="day-logs"><div class="day-slot empty" onclick="openDayEntry(${weekIdx},${di})"><span class="day-log-placeholder">What did you do?</span></div>${hint}</div>`;
   };
   const atts = (w, weekIdx) =>
     DAYS.map(
       (d, i) =>
-        `<button class="${attBtnClass(w, i, todayDi)}" onclick="openDayEntry(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
+        `<button class="${attBtnClass(w, i, todayDi, weekIdx)}" onclick="tapDay(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
     ).join("");
   const weekFeedback = (w, weekIdx) =>
-    wSc(w) === 7
+    wSc(w) >= WEEK_TARGET
       ? `<div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>`
       : "";
-  const dayLogs = (w, weekIdx) => {
-    ensureWeekDay(w);
-    return Array.from({ length: 7 }, (_, i) => formatDayLog(w, weekIdx, i)).join("");
-  };
-  const todayLogBox = (w, weekIdx) => {
-    ensureWeekDay(w);
-    const entry = w.entries[todayDi];
-    const st = w.dayStatus[todayDi];
-    if (st || entry) {
-      return `<div class="day-logs">${formatDayLog(w, weekIdx, todayDi, "today-log")}</div>`;
-    }
-    return `<div class="day-logs"><div class="day-log today-log empty" onclick="openDayEntry(${weekIdx},${todayDi})"><span class="day-log-placeholder">What did you do?</span></div></div>`;
-  };
   const weekFocus = (w, weekIdx) =>
     `<input class="fi wk-focus" value="${esc(w.focus)}" placeholder="focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)" onclick="event.stopPropagation()"/>`;
-  const weekBody = (w, weekIdx, isCurrentWeek) => {
-    const logs = isCurrentWeek ? todayLogBox(w, weekIdx) : (() => {
-      const all = dayLogs(w, weekIdx);
-      return all ? `<div class="day-logs">${all}</div>` : "";
-    })();
+  const weekBody = (w, weekIdx) => {
     return `<div class="wk-body" onclick="event.stopPropagation()">
-    <div class="att-lbl">Attendance</div><div class="att-row">${atts(w, weekIdx)}</div>
-    ${logs}
+    <div class="att-row">${atts(w, weekIdx)}</div>
+    ${dayLogSlot(w, weekIdx)}
     ${weekFeedback(w, weekIdx)}
   </div>`;
   };
@@ -614,7 +757,7 @@ function renderMonth() {
       <div class="wk-hdr-row"${collapsible ? ` style="cursor:pointer" onclick="togExp('${ek}',${weekIdx})"` : ""}>
         <div class="wk-nm">${w.label}${pill}</div>
         ${expanded ? weekFocus(w, weekIdx) : ""}
-        <div class="wk-hdr-r"><span class="ws ${scoreClass}">${sc}/7</span>${toggle || ""}</div>
+        <div class="wk-hdr-r"><span class="ws ${scoreClass}">${sc}/${WEEK_TARGET}</span>${toggle || ""}</div>
       </div>
     </div>`;
 
@@ -627,21 +770,26 @@ function renderMonth() {
     const sc = wSc(w);
     const d7 = isDone(w);
     const ic = weekIdx === cwi;
-    const scoreClass = sc >= 5 ? "ws-ok" : sc > 0 ? "ws-pt" : "ws-no";
+    const scoreClass = weekScoreClass(sc);
     if (ic) {
-      html += `<div class="wk cur">${weekHdr(w, weekIdx, { pill: `<span class="pill pn">NOW</span>`, sc, scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx, true)}</div>`;
+      html += `<div class="wk cur">${weekHdr(w, weekIdx, { pill: `<span class="pill pn">NOW</span>`, sc, scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx)}</div>`;
     } else if (d7) {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: `<span class="pill pd">✓ Done</span>`, sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx, false) : ""}</div>`;
+      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: `<span class="pill pd">✓ Success</span>`, sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
     } else {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx, false) : ""}</div>`;
+      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
     }
   });
 
+  const monthTag =
+    goalDuration(g) === 3
+      ? blockLabel(g, m)
+      : `Month ${m + 1} · ${m < 3 ? "Phase 1" : "Phase 2"}`;
+
   document.getElementById("month-c").innerHTML = `
     <div class="mn-head">
-      <div class="mn-tag">Month ${m + 1} · ${m < 3 ? "Phase 1" : "Phase 2"}</div>
+      <div class="mn-tag">${monthTag}</div>
       <div class="mn-title">${esc(g.months[m]) || esc(g.name)}</div>
     </div>
     ${html}`;
@@ -657,41 +805,42 @@ function dayEntryHeader(w, di) {
     </div>`;
 }
 
+function tapDay(wi, di) {
+  const g = goals.find((x) => x.id === gId);
+  if (!g) return;
+  const w = g.weeks[wi];
+  ensureWeekDay(w);
+  setSelDay(wi, di);
+  if (w.dayStatus[di] && w.entries[di]) {
+    renderMonth();
+    return;
+  }
+  openDayEntry(wi, di);
+}
+
 function openDayEntry(wi, di) {
   const g = goals.find((x) => x.id === gId);
   if (!g) return;
   const w = g.weeks[wi];
   ensureWeekDay(w);
+  setSelDay(wi, di);
 
   document.getElementById("pips").style.display = "none";
   document.getElementById("ov").classList.add("open");
-
-  if (w.dayStatus[di] && w.entries[di]) {
-    renderDayEntryView(wi, di);
-  } else {
-    renderDayEntryPick(wi, di);
-  }
+  renderDayEntryPick(wi, di);
 }
 
-function renderDayEntryView(wi, di) {
+function editDayEntry(wi, di) {
   const g = goals.find((x) => x.id === gId);
   if (!g) return;
   const w = g.weeks[wi];
   ensureWeekDay(w);
   const status = w.dayStatus[di];
-  const meta = DAY_STATUS[status];
-  if (!meta) {
-    renderDayEntryPick(wi, di);
-    return;
-  }
+  if (!status) return;
 
-  document.getElementById("m-body").innerHTML = `
-    ${dayEntryHeader(w, di)}
-    <div class="day-status-pill tag-${status}">${meta.label}</div>
-    <div class="day-view-entry">${esc(w.entries[di])}</div>
-    <div class="mf">
-      <button class="ms" onclick="renderDayEntryNote(${wi},${di},'${status}',true)">Edit</button>
-    </div>`;
+  document.getElementById("pips").style.display = "none";
+  document.getElementById("ov").classList.add("open");
+  renderDayEntryNote(wi, di, status, true);
 }
 
 function renderDayEntryPick(wi, di) {
@@ -721,9 +870,7 @@ function renderDayEntryNote(wi, di, status, editMode) {
   const meta = DAY_STATUS[status];
   if (!meta) return;
 
-  const backFn = editMode
-    ? `renderDayEntryView(${wi},${di})`
-    : `renderDayEntryPick(${wi},${di})`;
+  const backFn = `renderDayEntryPick(${wi},${di})`;
 
   document.getElementById("m-body").innerHTML = `
     ${dayEntryHeader(w, di)}
@@ -751,6 +898,7 @@ function saveDayEntry(wi, di, status) {
   w.entries[di] = val;
   w.dayStatus[di] = status;
   w.att[di] = status === "done" ? 1 : 0;
+  setSelDay(wi, di);
   save();
   closeMod();
   renderMonth();
@@ -780,14 +928,16 @@ function delGoal(id) {
 function openEdit(id) {
   const g = goals.find((x) => x.id === id);
   if (!g) return;
+  const mc = monthCount(g);
   document.getElementById("pips").style.display = "flex";
   ["p1", "p2", "p3"].forEach((x) => (document.getElementById(x).className = "pip"));
   document.getElementById("ov").classList.add("open");
   document.getElementById("m-body").innerHTML = `
     <div class="m-title">Edit Goal</div><div class="m-sub">Update details — progress is kept</div>
+    <div class="dur-readonly">${goalDuration(g)}-month goal</div>
     <label class="f-lbl">Goal name</label><input class="f-inp" id="e-nm" value="${esc(g.name)}"/>
     <label class="f-lbl">Identity statement</label><input class="f-inp" id="e-id" value="${esc(g.identity)}"/>
-    <label class="f-lbl">6-month big goal</label><input class="f-inp" id="e-big" value="${esc(g.big)}"/>
+    <label class="f-lbl">${bigGoalLabel(g)}</label><input class="f-inp" id="e-big" value="${esc(g.big)}"/>
     <label class="f-lbl">Start date</label><input class="f-inp" id="e-sd" type="date" value="${g.startDate}"/>
     <label class="f-lbl">Daily time window</label>
     <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -795,10 +945,14 @@ function openEdit(id) {
       <div style="flex:1"><div style="font-size:11px;color:var(--hi);margin-bottom:4px">To</div><input class="f-inp" id="e-tt" type="time" value="${g.timeTo || ""}" style="margin-bottom:0"/></div>
     </div>
     <label class="f-lbl">Atomic habit</label><input class="f-inp" id="e-ah" value="${esc(g.atomicHabit || "")}" placeholder="e.g. 15 mins of Duolingo"/>
-    <label class="f-lbl" style="color:var(--ac)">Phase 1 goal</label><input class="f-inp" id="e-p1" value="${esc(g.p1)}"/>
-    <label class="f-lbl" style="color:var(--ac-s)">Phase 2 goal</label><input class="f-inp" id="e-p2" value="${esc(g.p2)}"/>
-    <div class="divider">Monthly goals</div>
-    <div class="m-grid">${Array.from({ length: 6 }, (_, i) => `<div><div class="m-lbl">Month ${i + 1}</div><input class="m-inp" id="e-m${i}" value="${esc(g.months[i] || "")}" placeholder="Goal..."/></div>`).join("")}</div>
+    ${
+      goalDuration(g) === 6
+        ? `<label class="f-lbl" style="color:var(--ac)">${phaseLabel(g, 1)}</label><input class="f-inp" id="e-p1" value="${esc(g.p1)}"/>
+    <label class="f-lbl" style="color:var(--ac-s)">${phaseLabel(g, 2)}</label><input class="f-inp" id="e-p2" value="${esc(g.p2)}"/>`
+        : ""
+    }
+    <div class="divider">${goalDuration(g) === 3 ? "Period goals" : "Monthly goals"}</div>
+    <div class="m-grid">${Array.from({ length: mc }, (_, i) => `<div><div class="m-lbl">${blockLabel(g, i)}</div><input class="m-inp" id="e-m${i}" value="${esc(g.months[i] || "")}" placeholder="Goal..."/></div>`).join("")}</div>
     <div class="mf"><button onclick="closeMod()">Cancel</button><button class="ms" onclick="saveEdit(${id})">Save ✓</button></div>`;
 }
 
@@ -812,9 +966,11 @@ function saveEdit(id) {
   g.timeFrom = document.getElementById("e-tf").value;
   g.timeTo = document.getElementById("e-tt").value;
   g.atomicHabit = document.getElementById("e-ah").value.trim();
-  g.p1 = document.getElementById("e-p1").value.trim();
-  g.p2 = document.getElementById("e-p2").value.trim();
-  g.months = Array.from({ length: 6 }, (_, i) =>
+  if (goalDuration(g) === 6) {
+    g.p1 = document.getElementById("e-p1").value.trim();
+    g.p2 = document.getElementById("e-p2").value.trim();
+  }
+  g.months = Array.from({ length: monthCount(g) }, (_, i) =>
     document.getElementById("e-m" + i).value.trim()
   );
   save();
@@ -824,7 +980,7 @@ function saveEdit(id) {
 
 function openMod() {
   mStep = 1;
-  mData = {};
+  mData = { duration: 6 };
   document.getElementById("pips").style.display = "flex";
   document.getElementById("ov").classList.add("open");
   renderMod();
@@ -833,18 +989,30 @@ function openMod() {
 function closeMod() {
   document.getElementById("ov").classList.remove("open");
   document.getElementById("pips").style.display = "flex";
+  document.getElementById("p3").style.display = "";
 }
 
 function renderMod() {
-  ["p1", "p2", "p3"].forEach(
-    (x, i) => (document.getElementById(x).className = "pip" + (mStep > i ? " on" : ""))
-  );
+  const dur = modDur();
+  const steps = modSteps();
+  document.getElementById("p3").style.display = dur === 3 ? "none" : "";
+  ["p1", "p2", "p3"].forEach((x, i) => {
+    if (dur === 3 && i >= 2) return;
+    document.getElementById(x).className = "pip" + (mStep > i ? " on" : "");
+  });
+  const bigLbl = dur === 3 ? "3-month big goal" : "6-month big goal";
+  const mc = dur === 3 ? 3 : 6;
   if (mStep === 1) {
     document.getElementById("m-body").innerHTML = `
-      <div class="m-title">New Goal</div><div class="m-sub">Step 1 of 3 — The basics</div>
+      <div class="m-title">New Goal</div><div class="m-sub">Step 1 of ${steps} — The basics</div>
+      <label class="f-lbl">Goal duration</label>
+      <div class="dur-pick">
+        <button type="button" class="dur-btn${dur === 6 ? " on" : ""}" onclick="setDuration(6)">6 months</button>
+        <button type="button" class="dur-btn${dur === 3 ? " on" : ""}" onclick="setDuration(3)">3 months</button>
+      </div>
       <label class="f-lbl">Goal name</label><input class="f-inp" id="fn" placeholder="e.g. Learn Spanish" value="${esc(mData.name || "")}"/>
       <label class="f-lbl">Identity statement</label><input class="f-inp" id="fi" placeholder="I am someone who..." value="${esc(mData.identity || "")}"/>
-      <label class="f-lbl">6-month big goal</label><input class="f-inp" id="fb" placeholder="e.g. Reach A2 level" value="${esc(mData.big || "")}"/>
+      <label class="f-lbl">${bigLbl}</label><input class="f-inp" id="fb" placeholder="e.g. Reach A2 level" value="${esc(mData.big || "")}"/>
       <label class="f-lbl">Start date</label><input class="f-inp" id="fsd" type="date" value="${mData.startDate || tod()}"/>
       <label class="f-lbl">Daily time window</label>
       <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -854,6 +1022,16 @@ function renderMod() {
       <label class="f-lbl">Atomic habit <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--hi)">(minimum to count a day)</span></label>
       <input class="f-inp" id="fah" placeholder="e.g. 15 mins of Duolingo" value="${esc(mData.atomicHabit || "")}"/>
       <div class="mf"><button onclick="closeMod()">Cancel</button><button class="ms" onclick="mn()">Next →</button></div>`;
+  } else if (mStep === 2 && dur === 3) {
+    const bi = Array.from(
+      { length: 3 },
+      (_, i) =>
+        `<div><div class="m-lbl">${BLOCK_LABELS_3[i]}</div><input class="m-inp" id="mm${i}" placeholder="Goal..." value="${esc((mData.months && mData.months[i]) || "")}"/></div>`
+    ).join("");
+    document.getElementById("m-body").innerHTML = `
+      <div class="m-title">Period Goals</div><div class="m-sub">Step 2 of 2 — Optional but powerful</div>
+      <div class="m-grid">${bi}</div>
+      <div class="mf"><button onclick="mStep=1;renderMod()">← Back</button><button class="ms" onclick="sg()">Create Goal 🚀</button></div>`;
   } else if (mStep === 2) {
     document.getElementById("m-body").innerHTML = `
       <div class="m-title">Phase Goals</div><div class="m-sub">Step 2 of 3 — Your milestones</div>
@@ -862,12 +1040,12 @@ function renderMod() {
       <div class="mf"><button onclick="mStep=1;renderMod()">← Back</button><button class="ms" onclick="mn()">Next →</button></div>`;
   } else {
     const mi = Array.from(
-      { length: 6 },
+      { length: mc },
       (_, i) =>
         `<div><div class="m-lbl">Month ${i + 1}</div><input class="m-inp" id="mm${i}" placeholder="Goal..." value="${esc((mData.months && mData.months[i]) || "")}"/></div>`
     ).join("");
     document.getElementById("m-body").innerHTML = `
-      <div class="m-title">Monthly Goals</div><div class="m-sub">Step 3 of 3 — Optional but powerful</div>
+      <div class="m-title">Monthly Goals</div><div class="m-sub">Step 3 of 3 — ${mc} monthly goals · optional but powerful</div>
       <div class="m-grid">${mi}</div>
       <div class="mf"><button onclick="mStep=2;renderMod()">← Back</button><button class="ms" onclick="sg()">Create Goal 🚀</button></div>`;
   }
@@ -884,6 +1062,7 @@ function mn() {
     }
     mData = {
       ...mData,
+      duration: modDur(),
       name: n,
       identity: i,
       big: b,
@@ -893,7 +1072,7 @@ function mn() {
       atomicHabit: document.getElementById("fah").value.trim(),
     };
     mStep = 2;
-  } else if (mStep === 2) {
+  } else if (mStep === 2 && modDur() !== 3) {
     mData = {
       ...mData,
       p1: document.getElementById("fp1").value.trim(),
@@ -909,7 +1088,8 @@ function sg() {
     alert("Max " + MAX + " goals.");
     return;
   }
-  const months = Array.from({ length: 6 }, (_, i) =>
+  const mc = modDur() === 3 ? 3 : 6;
+  const months = Array.from({ length: mc }, (_, i) =>
     document.getElementById("mm" + i).value.trim()
   );
   goals.push(
@@ -923,7 +1103,8 @@ function sg() {
       mData.startDate,
       mData.timeFrom,
       mData.timeTo,
-      mData.atomicHabit
+      mData.atomicHabit,
+      mData.duration
     )
   );
   save();
@@ -961,15 +1142,17 @@ Object.assign(window, {
   openEdit,
   delGoal,
   openDayEntry,
+  tapDay,
+  editDayEntry,
   pickDayStatus,
   renderDayEntryPick,
-  renderDayEntryView,
   renderDayEntryNote,
   saveDayEntry,
   saveFld,
   togExp,
   mn,
   sg,
+  setDuration,
   saveEdit,
   exportD,
   importD,

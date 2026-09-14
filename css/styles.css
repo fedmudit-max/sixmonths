@@ -970,6 +970,75 @@ nav {
   line-height: 1.4;
 }
 
+.day-slot {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--b1);
+  background: var(--s2);
+  padding: 12px 40px 12px 12px;
+  min-height: 46px;
+}
+
+.day-slot.empty {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 12px;
+}
+
+.day-slot.empty:active {
+  background: var(--s3);
+}
+
+.day-slot.st-done {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+}
+
+.day-slot.st-rest {
+  background: var(--gn-b);
+  border-color: var(--gn-br);
+}
+
+.day-slot.st-busy {
+  background: var(--am-l);
+  border-color: var(--am-b);
+}
+
+.day-slot-edit {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--b1);
+  background: var(--s1);
+  border-radius: 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--sh);
+}
+
+.day-slot-edit:active {
+  transform: scale(0.92);
+  background: var(--s2);
+}
+
+.day-slot-text {
+  font-size: 14px;
+  color: var(--tx2);
+  line-height: 1.5;
+  margin-top: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.day-slot .day-log-tag {
+  margin-bottom: 0;
+}
+
 .day-log-tag {
   font-size: 9px;
   font-weight: 800;
@@ -1012,6 +1081,48 @@ nav {
 .day-pick-btns {
   display: flex;
   gap: 8px;
+}
+
+.dur-pick {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.dur-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
+  border: 1.5px solid var(--b1);
+  background: var(--s2);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mu);
+  transition: all 0.15s;
+}
+
+.dur-btn.on {
+  background: rgba(79, 70, 229, 0.08);
+  border-color: var(--ac);
+  color: var(--ac);
+}
+
+.dur-btn:active {
+  transform: scale(0.96);
+}
+
+.dur-readonly {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ac);
+  background: rgba(79, 70, 229, 0.08);
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 14px;
 }
 
 .day-pick-btn {
@@ -1088,6 +1199,12 @@ nav {
 .pd {
   background: var(--gn);
   color: #fff;
+}
+
+.wk-target-lbl {
+  font-size: 11px;
+  color: var(--hi);
+  padding: 2px 2px 0;
 }
 
 .ws {
@@ -1218,6 +1335,10 @@ nav {
 
 .ab.st-busy i {
   background: var(--am-b);
+}
+
+.ab.sel {
+  box-shadow: 0 0 0 2px var(--ac);
 }
 
 .ab:active {
