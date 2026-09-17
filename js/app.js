@@ -138,9 +138,9 @@ function ensureWeekDay(w) {
 }
 
 const DAY_STATUS = {
-  rest: { label: "Rest", placeholder: "Why are you resting today?" },
-  busy: { label: "Busy", placeholder: "What kept you busy?" },
-  done: { label: "Done", placeholder: "What did you accomplish?" },
+  rest: { label: "Rest", placeholder: "What is the reason for rest today?" },
+  busy: { label: "Busy", placeholder: "What kept you busy today?" },
+  done: { label: "Done", placeholder: "What have you accomplished today?" },
 };
 
 function dayStatusClass(st, base) {
@@ -324,6 +324,13 @@ function curWk(g) {
 
 function wSc(w) {
   return w.att ? w.att.filter(Boolean).length : 0;
+}
+
+function wDaysLogged(w) {
+  ensureWeekDay(w);
+  let n = 0;
+  for (let i = 0; i < 7; i++) if (w.dayStatus[i] && w.entries[i]) n++;
+  return n;
 }
 
 function isDone(w) {
@@ -520,16 +527,15 @@ function renderHome() {
       : `${total} goal${total > 1 ? "s" : ""} tracked · up to ${MAX} at a time`;
 
   let h = goals
-    .map((g) => {
+    .map((g, i) => {
       const p = gPct(g);
       const wi = curWk(g);
       const cw = g.weeks[wi];
       const todayDi = new Date().getDay();
       const dots =
         cw && cw.t === "active"
-          ? DAYS.map((d, i) => `<div class="${homeDotClass(cw, i, todayDi)}">${d}</div>`).join("")
+          ? DAYS.map((d, idx) => `<div class="${homeDotClass(cw, idx, todayDi)}">${d}</div>`).join("")
           : DAYS.map((d) => `<div class="dc">${d}</div>`).join("");
-      const wd = cw && cw.t === "active" ? wSc(cw) : 0;
       const timePill =
         g.timeFrom && g.timeTo
           ? `<div class="gc-pill gc-pill-time">🕐 ${fmtT(g.timeFrom)}–${fmtT(g.timeTo)}</div>`
@@ -537,6 +543,10 @@ function renderHome() {
       const ahPill = g.atomicHabit
         ? `<div class="gc-pill gc-pill-habit">⚡ ${esc(g.atomicHabit)}</div>`
         : "";
+      const moveUp =
+        i > 0
+          ? `<button class="gc-action" onclick="event.stopPropagation();moveGoal(${g.id},-1)" aria-label="Move up">↑</button>`
+          : "";
       return `<div class="gc" onclick="showGoal(${g.id})">
       <div class="gc-top-bar"></div>
       <div class="gc-body">
@@ -552,11 +562,12 @@ function renderHome() {
             <div class="gc-actions">
               <button class="gc-action" onclick="event.stopPropagation();openEdit(${g.id})" aria-label="Edit goal">✏️</button>
               <button class="gc-action" onclick="event.stopPropagation();delGoal(${g.id})" aria-label="Delete goal">🗑️</button>
+              ${moveUp}
             </div>
           </div>
         </div>
       </div>
-      <div class="gc-footer">${dots}<span class="gc-wk-label">${Math.min(wd, WEEK_TARGET)}/${WEEK_TARGET} · Wk ${wi + 1}</span></div>
+      <div class="gc-footer">${dots}<span class="gc-wk-label">Wk ${wi + 1}</span></div>
     </div>`;
     })
     .join("");
@@ -708,7 +719,9 @@ function renderMonth() {
 
   const idx = aw.map((w, i) => ({ w, wi: ws + i }));
   const ci = idx.find((x) => x.wi === cwi);
-  const di = idx.filter(({ w }) => isDone(w)).sort((a, b) => b.wi - a.wi);
+  const di = idx
+    .filter(({ w, wi: weekIdx }) => isDone(w) && weekIdx !== cwi)
+    .sort((a, b) => b.wi - a.wi);
   const fi = idx.filter(({ w, wi: weekIdx }) => !isDone(w) && weekIdx !== cwi && w.t !== "rest");
   const ri = idx.filter(({ w }) => w.t === "rest");
   const sorted = [...(ci ? [ci] : []), ...di, ...fi, ...ri];
@@ -740,8 +753,8 @@ function renderMonth() {
         `<button class="${attBtnClass(w, i, todayDi, weekIdx)}" onclick="tapDay(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
     ).join("");
   const weekFeedback = (w, weekIdx) =>
-    wSc(w) >= WEEK_TARGET
-      ? `<div class="fl">Weekly Feedback</div><textarea class="fi" rows="2" placeholder="How did the week go?" oninput="saveFld(${weekIdx},'feedback',this.value)">${esc(w.feedback)}</textarea>`
+    wDaysLogged(w) >= 7
+      ? `<div class="fl">Weekly Feedback</div><textarea class="fi wk-feedback" rows="1" placeholder="Successful, Learned something" oninput="saveFld(${weekIdx},'feedback',this.value);fitFeedback(this)">${esc(w.feedback)}</textarea>`
       : "";
   const weekFocus = (w, weekIdx) =>
     `<input class="fi wk-focus" value="${esc(w.focus)}" placeholder="focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)" onclick="event.stopPropagation()"/>`;
@@ -772,7 +785,11 @@ function renderMonth() {
     const ic = weekIdx === cwi;
     const scoreClass = weekScoreClass(sc);
     if (ic) {
-      html += `<div class="wk cur">${weekHdr(w, weekIdx, { pill: `<span class="pill pn">NOW</span>`, sc, scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx)}</div>`;
+      const pill = d7
+        ? `<span class="pill pd">✓ Success</span>`
+        : `<span class="pill pn">NOW</span>`;
+      const wkCls = d7 ? "wk ok" : "wk cur";
+      html += `<div class="${wkCls}">${weekHdr(w, weekIdx, { pill, sc, scoreClass: d7 ? "ws-ok" : scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx)}</div>`;
     } else if (d7) {
       const ie = !!ex[weekIdx];
       html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: `<span class="pill pd">✓ Success</span>`, sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
@@ -782,17 +799,20 @@ function renderMonth() {
     }
   });
 
-  const monthTag =
-    goalDuration(g) === 3
-      ? blockLabel(g, m)
-      : `Month ${m + 1} · ${m < 3 ? "Phase 1" : "Phase 2"}`;
-
   document.getElementById("month-c").innerHTML = `
     <div class="mn-head">
-      <div class="mn-tag">${monthTag}</div>
       <div class="mn-title">${esc(g.months[m]) || esc(g.name)}</div>
     </div>
     ${html}`;
+  setTimeout(() => document.querySelectorAll(".wk-feedback").forEach(fitFeedback), 0);
+}
+
+function fitFeedback(ta) {
+  if (!ta) return;
+  const min = 36;
+  const max = 120;
+  ta.style.height = "auto";
+  ta.style.height = Math.min(max, Math.max(min, ta.scrollHeight)) + "px";
 }
 
 function dayEntryHeader(w, di) {
@@ -923,6 +943,15 @@ function delGoal(id) {
   save();
   renderHome();
   setNav("home");
+}
+
+function moveGoal(id, dir) {
+  const i = goals.findIndex((g) => g.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= goals.length) return;
+  [goals[i], goals[j]] = [goals[j], goals[i]];
+  save();
+  renderHome();
 }
 
 function openEdit(id) {
@@ -1141,6 +1170,7 @@ Object.assign(window, {
   showHome,
   openEdit,
   delGoal,
+  moveGoal,
   openDayEntry,
   tapDay,
   editDayEntry,
@@ -1149,6 +1179,7 @@ Object.assign(window, {
   renderDayEntryNote,
   saveDayEntry,
   saveFld,
+  fitFeedback,
   togExp,
   mn,
   sg,

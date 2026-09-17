@@ -401,7 +401,6 @@ nav {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 12px;
 }
 
 .gc-meta {
@@ -479,7 +478,9 @@ nav {
 
 .gc-actions {
   display: flex;
+  align-items: center;
   gap: 5px;
+  justify-content: flex-end;
 }
 
 .gc-action {
@@ -1372,6 +1373,20 @@ nav {
 .fi:focus {
   border-color: var(--ac);
   background: var(--s1);
+}
+
+.fi.wk-feedback {
+  min-height: 36px;
+  max-height: 120px;
+  padding: 6px 10px;
+  resize: none;
+  overflow-y: auto;
+  field-sizing: content;
+}
+
+.fi.wk-feedback::placeholder {
+  color: var(--hi);
+  opacity: 1;
 }
 
 .yn-r {
