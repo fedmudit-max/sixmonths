@@ -639,6 +639,282 @@ nav {
   color: var(--hi);
 }
 
+#goal-ideas-slot {
+  margin: 14px 0 10px;
+}
+
+.goal-ideas-btn {
+  width: 100%;
+  border: 1px solid var(--b1);
+  border-radius: var(--r-xl);
+  padding: 14px 18px;
+  background: var(--s1);
+  color: var(--tx);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+  box-shadow: var(--sh);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.goal-ideas-btn:active {
+  background: var(--ac-l);
+  border-color: var(--ac);
+}
+
+.idea-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  max-height: 52vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.idea-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--b1);
+  border-radius: 14px;
+  background: var(--s2);
+  color: inherit;
+}
+
+.idea-row:active {
+  background: var(--s3);
+}
+
+.idea-row-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.idea-row-txt {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.idea-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.idea-row-sub {
+  font-size: 11px;
+  color: var(--hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.idea-row-arr {
+  color: var(--hi);
+  font-size: 18px;
+}
+
+.idea-block {
+  margin-bottom: 12px;
+}
+
+.idea-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hi);
+  margin-bottom: 4px;
+}
+
+.idea-val {
+  font-size: 14px;
+  color: var(--tx);
+  line-height: 1.45;
+}
+
+.idea-months {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+  max-height: 36vh;
+  overflow-y: auto;
+}
+
+.idea-mo {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: var(--s2);
+  border-radius: 10px;
+  border: 1px solid var(--b1);
+}
+
+.idea-mo-n {
+  font-weight: 700;
+  color: var(--ac);
+  flex-shrink: 0;
+  width: 62px;
+}
+
+.idea-mo-t {
+  color: var(--tx);
+  line-height: 1.35;
+}
+
+.idea-hint {
+  font-size: 12px;
+  color: var(--hi);
+  line-height: 1.45;
+  margin: 0;
+}
+
+#priority-card {
+  margin-top: 6px;
+}
+
+.prio-card {
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: var(--sh);
+  margin-bottom: 14px;
+}
+
+.prio-top-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--am), #d97706);
+  display: block;
+}
+
+.prio-body {
+  padding: 16px 18px 18px;
+}
+
+.prio-h {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--tx);
+  line-height: 1.3;
+}
+
+.prio-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prio-n {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--am-l);
+  border: 1px solid var(--am-b);
+  color: var(--am);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.prio-inp {
+  flex: 1;
+  min-width: 0;
+  border: 1.5px solid var(--b1);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: var(--tx);
+  background: var(--s2);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.prio-inp:focus {
+  border-color: var(--am);
+  background: var(--s1);
+}
+
+.prio-inp::placeholder {
+  color: var(--hi);
+}
+
+.prio-del {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--b1);
+  background: var(--s2);
+  color: var(--hi);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.prio-del:active {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.prio-add {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1.5px dashed var(--b2);
+  background: var(--s2);
+  color: var(--am);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.prio-add:active {
+  background: var(--am-l);
+  border-color: var(--am-b);
+}
+
+.prio-empty {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--hi);
+}
+
+.prio-cap {
+  margin: 12px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hi);
+  text-align: center;
+}
+
 .ph-block {
   background: var(--s1);
   border: 1px solid var(--b1);

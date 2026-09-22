@@ -1,4 +1,4 @@
-const CACHE = "momentum-v2";
+const CACHE = "momentum-v6";
 const ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,12 @@ const ASSETS = [
   "./css/styles.css",
   "./js/app.js",
   "./js/pwa.js",
+  "./js/storage.js",
+  "./js/progress.js",
+  "./js/goals.js",
+  "./js/ui.js",
+  "./js/navigation.js",
+  "./js/goal-ideas.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];
