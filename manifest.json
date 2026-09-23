@@ -1,9 +1,9 @@
 {
-  "id": "/",
+  "id": "./",
   "name": "Momentum",
   "short_name": "Momentum",
-  "description": "24-week goal tracker. Show up every day.",
-  "start_url": "./index.html",
+  "description": "3- and 6-month goal tracker with daily habits, weekly progress, and rest weeks.",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

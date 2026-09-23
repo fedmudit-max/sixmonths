@@ -1,5 +1,6 @@
 export const KEY = "momentum_v4";
 export const TODO_KEY = "momentum_todos_v1";
+export const BACKUP_VERSION = 5;
 export const MAX = 5;
 export const TODO_MAX = 5;
 
@@ -69,10 +70,18 @@ export function saveTodosData(todos) {
   } catch (e) {}
 }
 
-export function downloadGoalsBackup(goals, dateLabel) {
-  const b = new Blob([JSON.stringify({ v: 4, goals }, null, 2)], {
-    type: "application/json",
-  });
+export function normalizeTodosImport(raw) {
+  if (!Array.isArray(raw)) return [];
+  const items = raw.slice(0, TODO_MAX).map((s) => String(s ?? ""));
+  if (items.every((s) => !s.trim())) return [];
+  return items;
+}
+
+export function downloadMomentumBackup(goals, todos, dateLabel) {
+  const b = new Blob(
+    [JSON.stringify({ v: BACKUP_VERSION, goals, todos }, null, 2)],
+    { type: "application/json" }
+  );
   const u = URL.createObjectURL(b);
   const a = document.createElement("a");
   a.href = u;
@@ -83,14 +92,52 @@ export function downloadGoalsBackup(goals, dateLabel) {
   URL.revokeObjectURL(u);
 }
 
-export function readGoalsBackupFile(file) {
+function assertImportableGoal(g) {
+  if (!g || typeof g !== "object") throw new Error("invalid goal");
+  if (g.weeks !== undefined && !Array.isArray(g.weeks)) throw new Error("invalid goal");
+}
+
+/** Parse exported backup JSON (v4 goals-only or v5 goals + todos). */
+export function parseMomentumBackup(text) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) throw new Error("empty");
+  let d;
+  try {
+    d = JSON.parse(trimmed);
+  } catch {
+    throw new Error("invalid json");
+  }
+  if (!d || typeof d !== "object") throw new Error("invalid");
+  if (!Array.isArray(d.goals)) throw new Error("invalid");
+  if (d.goals.length > MAX) throw new Error("too many goals");
+  d.goals.forEach(assertImportableGoal);
+  return {
+    goals: d.goals,
+    todos: normalizeTodosImport(d.todos),
+  };
+}
+
+export function backupImportErrorMessage(err) {
+  if (!err?.message) return "Invalid or unsupported backup file.";
+  switch (err.message) {
+    case "empty":
+      return "The file is empty.";
+    case "too many goals":
+      return `This backup has more than ${MAX} goals. Momentum supports up to ${MAX} at a time.`;
+    case "invalid goal":
+      return "The backup contains a goal that could not be read.";
+    default:
+      return "Invalid or unsupported backup file.";
+  }
+}
+
+/** @returns {Promise<{ goals: unknown[], todos: string[] }>} */
+export function readMomentumBackupFile(file) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = (ev) => {
       try {
-        const d = JSON.parse(ev.target.result);
-        if (!d.goals || !Array.isArray(d.goals)) throw new Error("invalid");
-        resolve(d.goals);
+        resolve(parseMomentumBackup(ev.target.result));
       } catch (e) {
         reject(e);
       }

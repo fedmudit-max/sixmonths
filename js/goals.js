@@ -5,6 +5,7 @@ import {
   loadTodos,
   saveGoalsData,
   saveTodosData,
+  normalizeTodosImport,
 } from "./storage.js";
 import {
   mkGoal,
@@ -24,6 +25,9 @@ function esc(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+const START_DATE_ADVISORY =
+  '<p class="goal-plan-note">Week 1 runs from your start date through <strong>Saturday</strong> (e.g. start Wed → score out of 4). The next <strong>Sunday</strong> begins Week 2 with full Sun–Sat weeks. Starting on Sunday gives a full 5-day target in Week 1.</p>';
 
 export const appState = {
   goals: normalizeGoals(loadGoals() || [defaultGoal()]),
@@ -136,6 +140,7 @@ export function openEdit(id) {
     <label class="f-lbl">Identity statement</label><input class="f-inp" id="e-id" value="${esc(g.identity)}"/>
     <label class="f-lbl">${bigGoalLabel(g)}</label><input class="f-inp" id="e-big" value="${esc(g.big)}"/>
     <label class="f-lbl">Start date</label><input class="f-inp" id="e-sd" type="date" value="${g.startDate}"/>
+    ${START_DATE_ADVISORY}
     <label class="f-lbl">Daily time window</label>
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <div style="flex:1"><div style="font-size:11px;color:var(--hi);margin-bottom:4px">From</div><input class="f-inp" id="e-tf" type="time" value="${g.timeFrom || ""}" style="margin-bottom:0"/></div>
@@ -177,7 +182,7 @@ export function saveEdit(id) {
 
 export function openMod() {
   appState.mStep = 1;
-  appState.mData = { duration: 6 };
+  appState.mData = { duration: 6, startDate: tod() };
   document.getElementById("pips").style.display = "flex";
   document.getElementById("ov").classList.add("open");
   pushWizardHistory(1);
@@ -328,6 +333,7 @@ export function renderMod() {
       <label class="f-lbl">Identity statement</label><input class="f-inp" id="fi" placeholder="I am someone who..." value="${esc(appState.mData.identity || "")}"/>
       <label class="f-lbl">${bigLbl}</label><input class="f-inp" id="fb" placeholder="e.g. Reach A2 level" value="${esc(appState.mData.big || "")}"/>
       <label class="f-lbl">Start date</label><input class="f-inp" id="fsd" type="date" value="${appState.mData.startDate || tod()}"/>
+      ${START_DATE_ADVISORY}
       <label class="f-lbl">Daily time window</label>
       <div style="display:flex;gap:8px;margin-bottom:14px">
         <div style="flex:1"><div style="font-size:11px;color:var(--hi);margin-bottom:4px">From</div><input class="f-inp" id="ftf" type="time" value="${appState.mData.timeFrom || ""}" style="margin-bottom:0"/></div>
@@ -384,7 +390,7 @@ export function mn() {
       name: n,
       identity: i,
       big: b,
-      startDate: document.getElementById("fsd").value,
+      startDate: document.getElementById("fsd").value || tod(),
       timeFrom: document.getElementById("ftf").value,
       timeTo: document.getElementById("ftt").value,
       atomicHabit: document.getElementById("fah").value.trim(),
@@ -432,7 +438,14 @@ export async function sg() {
   showHome();
 }
 
-export function replaceGoalsFromBackup(rawGoals) {
-  appState.goals = normalizeGoals(rawGoals);
+export function replaceFromBackup({ goals, todos }) {
+  appState.goals = normalizeGoals(goals);
+  appState.todos = normalizeTodosImport(todos);
   persistGoals();
+  persistTodos();
+}
+
+/** @deprecated Use replaceFromBackup — goals JSON already includes weeks, entries, and feedback. */
+export function replaceGoalsFromBackup(rawGoals) {
+  replaceFromBackup({ goals: rawGoals, todos: [] });
 }

@@ -12,7 +12,7 @@ import {
   persistGoals,
   persistTodos,
   closeMod,
-  replaceGoalsFromBackup,
+  replaceFromBackup,
 } from "./goals.js";
 import {
   attBtnClass,
@@ -20,11 +20,17 @@ import {
   curBlock,
   curMo,
   curWk,
+  dateForWeekDay,
   ensureWeekDay,
+  fmtStartDate,
+  goalHasStarted,
+  goalReadyToCelebrate,
   gPct,
   getSelDay,
   goalDuration,
   homeDotClass,
+  isDayInWeekPlan,
+  isDayLoggable,
   isDone,
   mDone,
   mPct,
@@ -35,13 +41,18 @@ import {
   phDone,
   setSelDay,
   tod,
+  weekDayAriaDate,
+  weekDayDateNum,
+  weekRangeLabel,
+  weekTarget,
   wDaysLogged,
   wSc,
   weekScoreClass,
 } from "./progress.js";
 import {
-  downloadGoalsBackup,
-  readGoalsBackupFile,
+  downloadMomentumBackup,
+  backupImportErrorMessage,
+  readMomentumBackupFile,
 } from "./storage.js";
 import { renderGoalIdeasButton } from "./goal-ideas.js";
 
@@ -91,10 +102,11 @@ export function splash() {
 }
 
 export function chkCel(g) {
-  if (gPct(g) === 100) {
-    document.getElementById("cel-g").textContent = '"' + g.big + '"';
-    document.getElementById("celebration").classList.add("show");
-  }
+  if (!goalReadyToCelebrate(g) || g.celebrated) return;
+  g.celebrated = true;
+  persistGoals();
+  document.getElementById("cel-g").textContent = '"' + g.big + '"';
+  document.getElementById("celebration").classList.add("show");
 }
 
 export function closeCel() {
@@ -112,12 +124,18 @@ export function renderHome() {
     .map((g, i) => {
       const p = gPct(g);
       const wi = curWk(g);
-      const cw = g.weeks[wi];
+      const cw = wi !== null ? g.weeks[wi] : null;
       const todayDi = new Date().getDay();
       const dots =
-        cw && cw.t === "active"
-          ? DAYS.map((d, idx) => `<div class="${homeDotClass(cw, idx, todayDi)}">${d}</div>`).join("")
+        cw && cw.t === "active" && wi !== null
+          ? DAYS.map((d, idx) =>
+              `<div class="${homeDotClass(cw, idx, todayDi, g, wi)}">${d}</div>`
+            ).join("")
           : DAYS.map((d) => `<div class="dc">${d}</div>`).join("");
+      const wkLabel =
+        wi !== null
+          ? `Wk ${wi + 1}`
+          : `Starts ${fmtStartDate(g.startDate)}`;
       const timePill =
         g.timeFrom && g.timeTo
           ? `<div class="gc-pill gc-pill-time">🕐 ${fmtT(g.timeFrom)}–${fmtT(g.timeTo)}</div>`
@@ -149,7 +167,7 @@ export function renderHome() {
           </div>
         </div>
       </div>
-      <div class="gc-footer">${dots}<span class="gc-wk-label">Wk ${wi + 1}</span></div>
+      <div class="gc-footer">${dots}<span class="gc-wk-label">${wkLabel}</span></div>
     </div>`;
     })
     .join("");
@@ -166,9 +184,21 @@ export function renderHome() {
   renderPriorityCard();
 }
 
+function requireActiveWeek(g, wi) {
+  if (!goalHasStarted(g)) return false;
+  const cur = curWk(g);
+  if (cur === null || wi !== cur) return false;
+  const w = g?.weeks?.[wi];
+  return w && w.t === "active";
+}
+
 export function renderGoal() {
   const g = appState.goals.find((x) => x.id === appState.gId);
   if (!g) return;
+
+  const startBanner = !goalHasStarted(g)
+    ? `<p class="goal-plan-note">Starts ${esc(fmtStartDate(g.startDate))}. Weeks and logging begin on that date.</p>`
+    : "";
 
   if (goalDuration(g) === 3) {
     const cm = curBlock(g);
@@ -178,7 +208,10 @@ export function renderGoal() {
     const fut = blocks.filter((m) => !mDone(g, m) && m !== cm);
     const sorted = cm === null ? done.concat(fut) : cur.concat(done, fut);
 
-    document.getElementById("goal-c").innerHTML = sorted
+    document.getElementById("goal-c").innerHTML = `
+    ${startBanner}
+    <p class="goal-plan-note">3-month program: 12 active weeks + Week 13 rest (not a missing week).</p>
+    ${sorted
       .map((m, i) => {
         const mp = mPct(g, m);
         const md = mDone(g, m);
@@ -209,7 +242,7 @@ export function renderGoal() {
     </div>`;
         return i ? `<div style="margin-top:10px">${block}</div>` : block;
       })
-      .join("");
+      .join("")}`;
     return;
   }
 
@@ -256,9 +289,11 @@ export function renderGoal() {
   }
 
   const p1d = phDone(g, 1);
-  document.getElementById("goal-c").innerHTML = p1d
-    ? phase(2) + `<div style="margin-top:10px">` + phase(1) + `</div>`
-    : phase(1) + `<div style="margin-top:10px">` + phase(2) + `</div>`;
+  document.getElementById("goal-c").innerHTML =
+    (startBanner ? startBanner : "") +
+    (p1d
+      ? phase(2) + `<div style="margin-top:10px">` + phase(1) + `</div>`
+      : phase(1) + `<div style="margin-top:10px">` + phase(2) + `</div>`);
 }
 
 export function renderMonth() {
@@ -267,13 +302,6 @@ export function renderMonth() {
   if (!g || m === null) return;
 
   const { ws, mw } = mWks(g, m);
-  const aw = [...mw];
-  if (goalDuration(g) === 6) {
-    if (m === 2) aw.push(g.weeks[12]);
-    if (m === 5) aw.push(g.weeks[25]);
-  } else if (m === 2) {
-    aw.push(g.weeks[12]);
-  }
 
   const ek = `${appState.gId}_${m}`;
   if (!window._exp[ek]) window._exp[ek] = {};
@@ -281,33 +309,42 @@ export function renderMonth() {
 
   const wi = curWk(g);
   let cwi = null;
-  if (mw.map((_, i) => ws + i).includes(wi)) cwi = wi;
-  else {
-    const fi = aw.findIndex((w) => w.t === "active" && !isDone(w));
-    if (fi >= 0) cwi = ws + fi;
+  const idx = mw.map((w, i) => ({ w, wi: ws + i }));
+  if (goalDuration(g) === 6) {
+    if (m === 2) idx.push({ w: g.weeks[12], wi: 12 });
+    if (m === 5) idx.push({ w: g.weeks[25], wi: 25 });
+  } else if (m === 2) {
+    idx.push({ w: g.weeks[12], wi: 12 });
+  }
+  if (goalHasStarted(g)) {
+    if (wi !== null && idx.some((x) => x.wi === wi)) cwi = wi;
+    else {
+      const fi = idx.find(({ w, wi: weekIdx }) => w.t === "active" && !isDone(w, g, weekIdx));
+      if (fi) cwi = fi.wi;
+    }
   }
 
-  const idx = aw.map((w, i) => ({ w, wi: ws + i }));
   const ci = idx.find((x) => x.wi === cwi);
   const di = idx
-    .filter(({ w, wi: weekIdx }) => isDone(w) && weekIdx !== cwi)
+    .filter(({ w, wi: weekIdx }) => isDone(w, g, weekIdx) && weekIdx !== cwi)
     .sort((a, b) => b.wi - a.wi);
-  const fi = idx.filter(({ w, wi: weekIdx }) => !isDone(w) && weekIdx !== cwi && w.t !== "rest");
+  const fi = idx.filter(({ w, wi: weekIdx }) => !isDone(w, g, weekIdx) && weekIdx !== cwi && w.t !== "rest");
   const ri = idx.filter(({ w }) => w.t === "rest");
   const sorted = [...(ci ? [ci] : []), ...di, ...fi, ...ri];
 
   const todayDi = new Date().getDay();
-  const weekTargetHint = (w) => {
-    const left = WEEK_TARGET - wSc(w);
+  const weekTargetHint = (w, weekIdx) => {
+    const tgt = weekTarget(g, weekIdx);
+    const left = tgt - wSc(w);
     if (left <= 0) return "";
-    return `<div class="wk-target-lbl">${left} day${left === 1 ? "" : "s"} remaining for a successful week</div>`;
+    return `<div class="wk-target-lbl">${left} day${left === 1 ? "" : "s"} remaining for a successful week (${tgt} this week)</div>`;
   };
   const dayLogSlot = (w, weekIdx) => {
     ensureWeekDay(w);
-    const di = getSelDay(appState.gId, weekIdx);
+    const di = getSelDay(appState.gId, weekIdx, g);
     const entry = w.entries[di];
     const st = w.dayStatus[di];
-    const hint = weekTargetHint(w);
+    const hint = weekTargetHint(w, weekIdx);
     if (st && entry) {
       return `<div class="day-logs"><div class="day-slot st-${st}">
         <button class="day-slot-edit" onclick="event.stopPropagation();editDayEntry(${weekIdx},${di})" aria-label="Edit entry">✏️</button>
@@ -318,10 +355,12 @@ export function renderMonth() {
     return `<div class="day-logs"><div class="day-slot empty" onclick="openDayEntry(${weekIdx},${di})"><span class="day-log-placeholder">What did you do?</span></div>${hint}</div>`;
   };
   const atts = (w, weekIdx) =>
-    DAYS.map(
-      (d, i) =>
-        `<button class="${attBtnClass(w, i, todayDi, appState.gId, weekIdx)}" onclick="tapDay(${weekIdx},${i})" aria-label="${DAY_NAMES[i]}"><span>${d}</span><i></i></button>`
-    ).join("");
+    DAYS.map((d, i) => {
+      const aria = g ? weekDayAriaDate(g, weekIdx, i) : DAY_NAMES[i];
+      const dat = g ? weekDayDateNum(g, weekIdx, i) : "";
+      const dow = DAY_NAMES[i].slice(0, 3);
+      return `<button type="button" class="${attBtnClass(w, i, todayDi, g, weekIdx)}" onclick="tapDay(${weekIdx},${i})" aria-label="${aria}"><span class="ab-dow">${dow}</span><span class="ab-dat">${dat}</span><i aria-hidden="true"></i></button>`;
+    }).join("");
   const weekFeedback = (w, weekIdx) =>
     wDaysLogged(w) >= 7
       ? `<div class="fl">Weekly Feedback</div><textarea class="fi wk-feedback" rows="1" placeholder="Successful, Learned something" oninput="saveFld(${weekIdx},'feedback',this.value);fitFeedback(this)">${esc(w.feedback)}</textarea>`
@@ -329,18 +368,20 @@ export function renderMonth() {
   const weekFocus = (w, weekIdx) =>
     `<input class="fi wk-focus" value="${esc(w.focus)}" placeholder="focus this week?" oninput="saveFld(${weekIdx},'focus',this.value)" onclick="event.stopPropagation()"/>`;
   const weekBody = (w, weekIdx) => {
+    const range = g ? weekRangeLabel(g, weekIdx) : "";
     return `<div class="wk-body" onclick="event.stopPropagation()">
+    ${range ? `<div class="att-lbl">${esc(range)}</div>` : ""}
     <div class="att-row">${atts(w, weekIdx)}</div>
     ${dayLogSlot(w, weekIdx)}
     ${weekFeedback(w, weekIdx)}
   </div>`;
   };
-  const weekHdr = (w, weekIdx, { pill, sc, scoreClass, toggle, expanded, collapsible, ek }) =>
+  const weekHdr = (w, weekIdx, { pill, sc, scoreClass, toggle, expanded, collapsible, ek, tgt }) =>
     `<div class="wk-hdr open">
       <div class="wk-hdr-row"${collapsible ? ` style="cursor:pointer" onclick="togExp('${ek}',${weekIdx})"` : ""}>
         <div class="wk-nm">${w.label}${pill}</div>
         ${expanded ? weekFocus(w, weekIdx) : ""}
-        <div class="wk-hdr-r"><span class="ws ${scoreClass}">${sc}/${WEEK_TARGET}</span>${toggle || ""}</div>
+        <div class="wk-hdr-r"><span class="ws ${scoreClass}">${sc}/${tgt ?? WEEK_TARGET}</span>${toggle || ""}</div>
       </div>
     </div>`;
 
@@ -351,31 +392,47 @@ export function renderMonth() {
       return;
     }
     const sc = wSc(w);
-    const d7 = isDone(w);
+    const tgt = weekTarget(g, weekIdx);
+    const d7 = isDone(w, g, weekIdx);
     const ic = weekIdx === cwi;
-    const scoreClass = weekScoreClass(sc);
+    const scoreClass = weekScoreClass(sc, tgt);
     if (ic) {
       const pill = d7 ? "" : `<span class="pill pn">NOW</span>`;
       const wkCls = d7 ? "wk ok" : "wk cur";
-      html += `<div class="${wkCls}">${weekHdr(w, weekIdx, { pill, sc, scoreClass: d7 ? "ws-ok" : scoreClass, expanded: true, collapsible: false })}${weekBody(w, weekIdx)}</div>`;
+      html += `<div class="${wkCls}">${weekHdr(w, weekIdx, { pill, sc, scoreClass: d7 ? "ws-ok" : scoreClass, expanded: true, collapsible: false, tgt })}${weekBody(w, weekIdx)}</div>`;
     } else if (d7) {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
+      html += `<div class="wk ok">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass: "ws-ok", toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek, tgt })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
     } else {
       const ie = !!ex[weekIdx];
-      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
+      html += `<div class="wk" style="opacity:.5">${weekHdr(w, weekIdx, { pill: "", sc, scoreClass, toggle: `<span class="tog">${ie ? "▲" : "▼"}</span>`, expanded: ie, collapsible: true, ek, tgt })}${ie ? weekBody(w, weekIdx) : ""}</div>`;
     }
   });
 
+  const startNote = !goalHasStarted(g)
+    ? `<p class="goal-plan-note">Your program starts ${esc(fmtStartDate(g.startDate))}. Logging unlocks on that date.</p>`
+    : "";
   document.getElementById("month-c").innerHTML = `
     <div class="mn-head">
       <div class="mn-title">${esc(g.months[m]) || esc(g.name)}</div>
+      ${startNote}
+      ${
+        goalDuration(g) === 3 && m === 2
+          ? `<p class="goal-plan-note">Includes Week 13 — your rest week (12 active weeks + 1 rest).</p>`
+          : goalDuration(g) === 6 && m === 2
+            ? `<p class="goal-plan-note">Includes Week 13 — scheduled rest week.</p>`
+            : goalDuration(g) === 6 && m === 5
+              ? `<p class="goal-plan-note">Includes Week 26 — scheduled rest week.</p>`
+              : ""
+      }
     </div>
     ${html}`;
   setTimeout(() => document.querySelectorAll(".wk-feedback").forEach(fitFeedback), 0);
 }
 function saveFld(wi, f, v) {
-  appState.goals.find((x) => x.id === appState.gId).weeks[wi][f] = v;
+  const g = appState.goals.find((x) => x.id === appState.gId);
+  if (!g || !requireActiveWeek(g, wi)) return;
+  g.weeks[wi][f] = v;
   persistGoals();
 }
 
@@ -385,11 +442,14 @@ function togExp(ek, wi) {
   renderMonth();
 }
 
-function dayEntryHeader(w, di) {
+function dayEntryHeader(w, di, g, weekIdx) {
+  const sub = g
+    ? weekDayAriaDate(g, weekIdx, di)
+    : DAY_NAMES[di];
   return `<div class="m-top">
       <div>
         <div class="m-title">${DAY_NAMES[di]}</div>
-        <div class="m-sub">${esc(w.label)}</div>
+        <div class="m-sub">${esc(sub)} · ${esc(w.label)}</div>
       </div>
       <button class="m-close" onclick="closeMod()" aria-label="Close">✕</button>
     </div>`;
@@ -403,7 +463,7 @@ function setTodo(i, v) {
 
 function tapDay(wi, di) {
   const g = appState.goals.find((x) => x.id === appState.gId);
-  if (!g) return;
+  if (!g || !requireActiveWeek(g, wi) || !isDayLoggable(g, wi, di)) return;
   const w = g.weeks[wi];
   ensureWeekDay(w);
   setSelDay(appState.gId, wi, di);
@@ -416,7 +476,7 @@ function tapDay(wi, di) {
 
 function openDayEntry(wi, di) {
   const g = appState.goals.find((x) => x.id === appState.gId);
-  if (!g) return;
+  if (!g || !requireActiveWeek(g, wi) || !isDayLoggable(g, wi, di)) return;
   const w = g.weeks[wi];
   ensureWeekDay(w);
   setSelDay(appState.gId, wi, di);
@@ -428,7 +488,7 @@ function openDayEntry(wi, di) {
 
 function editDayEntry(wi, di) {
   const g = appState.goals.find((x) => x.id === appState.gId);
-  if (!g) return;
+  if (!g || !requireActiveWeek(g, wi)) return;
   const w = g.weeks[wi];
   ensureWeekDay(w);
   const status = w.dayStatus[di];
@@ -445,7 +505,7 @@ function renderDayEntryPick(wi, di) {
   const w = g.weeks[wi];
 
   document.getElementById("m-body").innerHTML = `
-    ${dayEntryHeader(w, di)}
+    ${dayEntryHeader(w, di, g, wi)}
     <div class="f-lbl" style="margin-bottom:12px">What did you do?</div>
     <div class="day-pick-btns">
       <button class="day-pick-btn dp-rest" onclick="pickDayStatus(${wi},${di},'rest')">Rest</button>
@@ -467,7 +527,7 @@ function renderDayEntryNote(wi, di, status, editMode) {
   if (!meta) return;
 
   document.getElementById("m-body").innerHTML = `
-    ${dayEntryHeader(w, di)}
+    ${dayEntryHeader(w, di, g, wi)}
     <div class="day-status-pill tag-${status}">${meta.label}</div>
     <textarea class="f-inp" id="day-entry" rows="4" placeholder="${esc(meta.placeholder)}" style="margin-bottom:20px">${esc(editMode || w.dayStatus[di] === status ? w.entries[di] : "")}</textarea>
     <div class="mf">
@@ -495,7 +555,7 @@ function renderDayEntryNote(wi, di, status, editMode) {
 
 function saveDayEntry(wi, di, status) {
   const g = appState.goals.find((x) => x.id === appState.gId);
-  if (!g) return;
+  if (!g || !requireActiveWeek(g, wi) || !isDayLoggable(g, wi, di)) return;
   const w = g.weeks[wi];
   ensureWeekDay(w);
 
@@ -528,6 +588,7 @@ function addTodo() {
 
 function delTodo(i) {
   if (i < 0 || i >= appState.todos.length) return;
+  if (!confirm("Delete this to-do item?")) return;
   appState.todos.splice(i, 1);
   persistTodos();
   renderPriorityCard();
@@ -568,20 +629,20 @@ function renderPriorityCard() {
 
 
 export function exportD() {
-  downloadGoalsBackup(appState.goals, tod());
+  downloadMomentumBackup(appState.goals, appState.todos, tod());
 }
 
 export function importD(e) {
   const f = e.target.files[0];
   if (!f) return;
-  readGoalsBackupFile(f)
-    .then((goals) => {
-      if (!confirm("Replace all data with this backup?")) return;
-      replaceGoalsFromBackup(goals);
+  readMomentumBackupFile(f)
+    .then(({ goals, todos }) => {
+      if (!confirm("Replace all goals, progress, and to-do items with this backup?")) return;
+      replaceFromBackup({ goals, todos });
       import("./navigation.js").then((m) => m.showHome());
       alert("Imported!");
     })
-    .catch(() => alert("Invalid file."))
+    .catch((err) => alert(backupImportErrorMessage(err)))
     .finally(() => {
       e.target.value = "";
     });
@@ -595,7 +656,7 @@ export function openSettings() {
     <div class="m-sub">Backup your progress — data stays on this device</div>
     <button class="set-btn" onclick="exportD();closeMod()">
       Export backup
-      <span class="set-btn-desc">Download all goals as a JSON file</span>
+      <span class="set-btn-desc">Download goals and your to-do list as JSON</span>
     </button>
     <button class="set-btn" onclick="document.getElementById('imp-f').click()">
       Import backup

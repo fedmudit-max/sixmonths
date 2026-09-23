@@ -1,1 +1,11 @@
 .DS_Store
+**/.DS_Store
+__MACOSX/
+Thumbs.db
+
+# Local build artifacts — never deploy these
+dist/
+deploy/
+/*.zip
+momentum-release.zip
+momentum-web-release.zip
