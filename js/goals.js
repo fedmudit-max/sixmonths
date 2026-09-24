@@ -2,10 +2,12 @@ import {
   MAX,
   BLOCK_LABELS_3,
   loadGoals,
-  loadLocalGoalsBackup,
+  loadLocalSnapshotBackup,
   loadTodos,
   resolveGoalsForBoot,
+  resolveTodosForBoot,
   saveGoalsData,
+  saveLocalSnapshot,
   saveTodosData,
   normalizeTodosImport,
 } from "./storage.js";
@@ -40,7 +42,7 @@ function bootstrapGoals() {
 
 export const appState = {
   goals: bootstrapGoals(),
-  todos: loadTodos(),
+  todos: resolveTodosForBoot(),
   gId: null,
   mIdx: null,
   mStep: 1,
@@ -71,10 +73,12 @@ function defaultGoal() {
 
 export function persistGoals() {
   saveGoalsData(appState.goals);
+  saveLocalSnapshot(appState.goals, appState.todos);
 }
 
 export function persistTodos() {
   saveTodosData(appState.todos);
+  saveLocalSnapshot(appState.goals, appState.todos);
 }
 
 export function initUiState() {
@@ -455,19 +459,19 @@ export function replaceFromBackup({ goals, todos }) {
 }
 
 export async function restoreLastLocalBackup() {
-  const backup = loadLocalGoalsBackup();
-  if (!backup?.length) {
+  const backup = loadLocalSnapshotBackup();
+  if (!backup?.goals?.length) {
     alert("No automatic backup found on this device.");
     return;
   }
   if (
     !confirm(
-      "Replace your current goals with the last automatic backup saved on this device?"
+      "Replace your current goals and to-do list with the last automatic backup saved on this device?"
     )
   ) {
     return;
   }
-  replaceFromBackup({ goals: backup, todos: appState.todos });
+  replaceFromBackup({ goals: backup.goals, todos: backup.todos });
   closeMod();
   const { showHome } = await import("./navigation.js");
   showHome();

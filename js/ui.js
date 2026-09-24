@@ -655,7 +655,7 @@ export function openSettings() {
   const restoreBtn = localGoalsBackupAvailable()
     ? `<button class="set-btn" onclick="restoreLastLocalBackup()">
       Restore last backup
-      <span class="set-btn-desc">Use the automatic snapshot saved on this device</span>
+      <span class="set-btn-desc">Use the automatic snapshot (goals + to-do list) saved on this device</span>
     </button>`
     : "";
   document.getElementById("m-body").innerHTML = `

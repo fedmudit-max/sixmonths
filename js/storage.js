@@ -35,7 +35,7 @@ export const QUOTES = [
   "You are not behind. <em>You are exactly where showing up takes you forward.</em>",
 ];
 
-function readGoalsJson(key) {
+function readGoalsArray(key) {
   try {
     const d = localStorage.getItem(key);
     if (!d) return undefined;
@@ -47,54 +47,111 @@ function readGoalsJson(key) {
   }
 }
 
+/** v5 `{ v, goals, todos }` or legacy goals-only array. */
+function parseLocalSnapshotRaw(parsed) {
+  if (Array.isArray(parsed)) {
+    return parsed.length > 0 ? { goals: parsed, todos: undefined } : undefined;
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.goals)) {
+    return undefined;
+  }
+  if (parsed.goals.length === 0) return undefined;
+  return {
+    goals: parsed.goals,
+    todos: normalizeTodosImport(parsed.todos),
+  };
+}
+
+function readLocalSnapshot(key) {
+  try {
+    const d = localStorage.getItem(key);
+    if (!d) return undefined;
+    return parseLocalSnapshotRaw(JSON.parse(d));
+  } catch {
+    return undefined;
+  }
+}
+
+function writeLocalSnapshot(goals, todos) {
+  if (!Array.isArray(goals) || goals.length === 0) return;
+  try {
+    localStorage.setItem(
+      BACKUP_KEY,
+      JSON.stringify({
+        v: BACKUP_VERSION,
+        goals,
+        todos: normalizeTodosImport(todos),
+      })
+    );
+  } catch (e) {}
+}
+
 export function loadGoals() {
-  const primary = readGoalsJson(KEY);
+  const primary = readGoalsArray(KEY);
   if (primary !== undefined) return primary;
 
-  const backup = readGoalsJson(BACKUP_KEY);
-  if (backup !== undefined && backup.length > 0) return backup;
+  const backup = readLocalSnapshot(BACKUP_KEY);
+  if (backup?.goals?.length) return backup.goals;
 
   return null;
 }
 
 /** Prefer backup when primary is empty or invalid but a snapshot exists. */
 export function resolveGoalsForBoot(rawFromKey) {
+  const backup = readLocalSnapshot(BACKUP_KEY);
   if (rawFromKey === null) {
-    const backup = readGoalsJson(BACKUP_KEY);
-    if (backup?.length) return backup;
+    if (backup?.goals?.length) return backup.goals;
     return null;
   }
   if (!Array.isArray(rawFromKey)) {
-    const backup = readGoalsJson(BACKUP_KEY);
-    if (backup?.length) return backup;
+    if (backup?.goals?.length) return backup.goals;
     return null;
   }
   if (rawFromKey.length === 0) {
-    const backup = readGoalsJson(BACKUP_KEY);
-    if (backup?.length) return backup;
+    if (backup?.goals?.length) return backup.goals;
     return [];
   }
   return rawFromKey;
 }
 
+/** Todos from TODO_KEY, or from automatic snapshot when the list is empty. */
+export function resolveTodosForBoot() {
+  const fromKey = loadTodos();
+  if (fromKey.length > 0) return fromKey;
+  const backup = readLocalSnapshot(BACKUP_KEY);
+  return backup?.todos ?? [];
+}
+
 export function saveGoalsData(goals) {
   try {
-    const json = JSON.stringify(goals);
-    localStorage.setItem(KEY, json);
-    if (Array.isArray(goals) && goals.length > 0) {
-      localStorage.setItem(BACKUP_KEY, json);
-    }
+    localStorage.setItem(KEY, JSON.stringify(goals));
   } catch (e) {}
 }
 
-export function localGoalsBackupAvailable() {
-  const backup = readGoalsJson(BACKUP_KEY);
-  return !!(backup && backup.length > 0);
+/** Same shape as manual export backup — goals + todos. */
+export function saveLocalSnapshot(goals, todos) {
+  writeLocalSnapshot(goals, todos);
 }
 
+export function localGoalsBackupAvailable() {
+  const backup = readLocalSnapshot(BACKUP_KEY);
+  return !!(backup?.goals?.length);
+}
+
+/** @returns {{ goals: unknown[], todos: string[] } | null} */
+export function loadLocalSnapshotBackup() {
+  const backup = readLocalSnapshot(BACKUP_KEY);
+  if (!backup?.goals?.length) return null;
+  return {
+    goals: backup.goals,
+    todos: backup.todos ?? [],
+  };
+}
+
+/** @deprecated use loadLocalSnapshotBackup */
 export function loadLocalGoalsBackup() {
-  const backup = readGoalsJson(BACKUP_KEY);
-  return backup && backup.length > 0 ? backup : null;
+  const snap = loadLocalSnapshotBackup();
+  return snap ? snap.goals : null;
 }
 
 export function loadTodos() {
