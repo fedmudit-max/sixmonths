@@ -1,4 +1,5 @@
 export const KEY = "momentum_v4";
+export const BACKUP_KEY = "momentum_v4_backup";
 export const TODO_KEY = "momentum_todos_v1";
 export const BACKUP_VERSION = 5;
 export const MAX = 5;
@@ -34,19 +35,66 @@ export const QUOTES = [
   "You are not behind. <em>You are exactly where showing up takes you forward.</em>",
 ];
 
-export function loadGoals() {
+function readGoalsJson(key) {
   try {
-    const d = localStorage.getItem(KEY);
-    return d ? JSON.parse(d) : null;
-  } catch (e) {
+    const d = localStorage.getItem(key);
+    if (!d) return undefined;
+    const parsed = JSON.parse(d);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+export function loadGoals() {
+  const primary = readGoalsJson(KEY);
+  if (primary !== undefined) return primary;
+
+  const backup = readGoalsJson(BACKUP_KEY);
+  if (backup !== undefined && backup.length > 0) return backup;
+
+  return null;
+}
+
+/** Prefer backup when primary is empty or invalid but a snapshot exists. */
+export function resolveGoalsForBoot(rawFromKey) {
+  if (rawFromKey === null) {
+    const backup = readGoalsJson(BACKUP_KEY);
+    if (backup?.length) return backup;
     return null;
   }
+  if (!Array.isArray(rawFromKey)) {
+    const backup = readGoalsJson(BACKUP_KEY);
+    if (backup?.length) return backup;
+    return null;
+  }
+  if (rawFromKey.length === 0) {
+    const backup = readGoalsJson(BACKUP_KEY);
+    if (backup?.length) return backup;
+    return [];
+  }
+  return rawFromKey;
 }
 
 export function saveGoalsData(goals) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(goals));
+    const json = JSON.stringify(goals);
+    localStorage.setItem(KEY, json);
+    if (Array.isArray(goals) && goals.length > 0) {
+      localStorage.setItem(BACKUP_KEY, json);
+    }
   } catch (e) {}
+}
+
+export function localGoalsBackupAvailable() {
+  const backup = readGoalsJson(BACKUP_KEY);
+  return !!(backup && backup.length > 0);
+}
+
+export function loadLocalGoalsBackup() {
+  const backup = readGoalsJson(BACKUP_KEY);
+  return backup && backup.length > 0 ? backup : null;
 }
 
 export function loadTodos() {

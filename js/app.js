@@ -47,6 +47,7 @@ import {
   sg,
   setDuration,
   modBack,
+  restoreLastLocalBackup,
 } from "./goals.js";
 import {
   openGoalIdeas,
@@ -95,6 +96,7 @@ Object.assign(window, {
   sg,
   setDuration,
   modBack,
+  restoreLastLocalBackup,
   saveEdit,
   exportD,
   importD,

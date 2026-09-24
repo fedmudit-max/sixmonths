@@ -2,7 +2,9 @@ import {
   MAX,
   BLOCK_LABELS_3,
   loadGoals,
+  loadLocalGoalsBackup,
   loadTodos,
+  resolveGoalsForBoot,
   saveGoalsData,
   saveTodosData,
   normalizeTodosImport,
@@ -29,8 +31,15 @@ function esc(s) {
 const START_DATE_ADVISORY =
   '<p class="goal-plan-note">Week 1 runs from your start date through <strong>Saturday</strong> (e.g. start Wed → score out of 4). The next <strong>Sunday</strong> begins Week 2 with full Sun–Sat weeks. Starting on Sunday gives a full 5-day target in Week 1.</p>';
 
+function bootstrapGoals() {
+  const resolved = resolveGoalsForBoot(loadGoals());
+  if (resolved === null) return normalizeGoals([defaultGoal()]);
+  if (Array.isArray(resolved) && resolved.length === 0) return [];
+  return normalizeGoals(resolved);
+}
+
 export const appState = {
-  goals: normalizeGoals(loadGoals() || [defaultGoal()]),
+  goals: bootstrapGoals(),
   todos: loadTodos(),
   gId: null,
   mIdx: null,
@@ -443,6 +452,26 @@ export function replaceFromBackup({ goals, todos }) {
   appState.todos = normalizeTodosImport(todos);
   persistGoals();
   persistTodos();
+}
+
+export async function restoreLastLocalBackup() {
+  const backup = loadLocalGoalsBackup();
+  if (!backup?.length) {
+    alert("No automatic backup found on this device.");
+    return;
+  }
+  if (
+    !confirm(
+      "Replace your current goals with the last automatic backup saved on this device?"
+    )
+  ) {
+    return;
+  }
+  replaceFromBackup({ goals: backup, todos: appState.todos });
+  closeMod();
+  const { showHome } = await import("./navigation.js");
+  showHome();
+  alert("Restored from last backup.");
 }
 
 /** @deprecated Use replaceFromBackup — goals JSON already includes weeks, entries, and feedback. */

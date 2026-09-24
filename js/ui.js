@@ -52,6 +52,7 @@ import {
 import {
   downloadMomentumBackup,
   backupImportErrorMessage,
+  localGoalsBackupAvailable,
   readMomentumBackupFile,
 } from "./storage.js";
 import { renderGoalIdeasButton } from "./goal-ideas.js";
@@ -651,9 +652,16 @@ export function importD(e) {
 export function openSettings() {
   document.getElementById("pips").style.display = "none";
   document.getElementById("ov").classList.add("open");
+  const restoreBtn = localGoalsBackupAvailable()
+    ? `<button class="set-btn" onclick="restoreLastLocalBackup()">
+      Restore last backup
+      <span class="set-btn-desc">Use the automatic snapshot saved on this device</span>
+    </button>`
+    : "";
   document.getElementById("m-body").innerHTML = `
     <div class="m-title">Settings</div>
     <div class="m-sub">Backup your progress — data stays on this device</div>
+    ${restoreBtn}
     <button class="set-btn" onclick="exportD();closeMod()">
       Export backup
       <span class="set-btn-desc">Download goals and your to-do list as JSON</span>

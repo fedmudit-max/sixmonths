@@ -67,13 +67,14 @@ export function normalizeGoals(data) {
   data.forEach((g) => {
     if (!g || typeof g !== "object") return;
     if (!g.duration) g.duration = 6;
-    if (!Array.isArray(g.weeks)) g.weeks = mkWeeks(g.duration);
+    ensureGoalWeeks(g);
     if (!Array.isArray(g.months)) g.months = [];
     if (g.celebrated !== true) g.celebrated = false;
     while (g.months.length < monthCount(g)) g.months.push("");
     g.weeks.forEach((w) => {
-      if (w.t !== "active") return;
+      if (!w || w.t !== "active") return;
       if (!w.entries) w.entries = Array(7).fill("");
+      if (!w.att) w.att = Array(7).fill(0);
       if (!w.dayStatus) {
         w.dayStatus = Array(7).fill("");
         w.entries.forEach((entry, i) => {
@@ -83,6 +84,18 @@ export function normalizeGoals(data) {
     });
   });
   return data.filter((g) => g && typeof g === "object");
+}
+
+/** Extend missing week slots; never replace an existing weeks array (preserves progress). */
+export function ensureGoalWeeks(g) {
+  const total = goalDuration(g) === 3 ? 13 : 26;
+  if (!Array.isArray(g.weeks)) {
+    g.weeks = mkWeeks(g.duration);
+    return;
+  }
+  if (g.weeks.length >= total) return;
+  const template = mkWeeks(g.duration);
+  for (let i = g.weeks.length; i < total; i++) g.weeks.push(template[i]);
 }
 
 export function ensureWeekDay(w) {
