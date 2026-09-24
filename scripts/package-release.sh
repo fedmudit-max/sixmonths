@@ -20,6 +20,12 @@ rm -f "$OUT"
 )
 
 "${ROOT}/scripts/verify-release-zip.sh" "$OUT"
+"${ROOT}/scripts/assert-release-fresh.sh" "$OUT"
 
 echo "Created ${OUT}"
-echo "Deploy this file only — never ship the dev folder or GitHub \"Download ZIP\" of the repo."
+echo "Service worker: $(grep -E '^const CACHE = ' "${ROOT}/sw.js" | head -1)"
+echo ""
+echo "IMPORTANT:"
+echo "  • Upload ONLY this file for production / Android web assets."
+echo "  • Do NOT zip the dev repo (no .git, scripts/, or nested old zips)."
+echo "  • Re-run this script after every source change before shipping."

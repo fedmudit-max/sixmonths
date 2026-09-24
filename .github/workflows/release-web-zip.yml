@@ -1,0 +1,29 @@
+name: Build web release ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+      - "build-*"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build momentum-web-release.zip from source
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/package-release.sh
+
+      - name: Upload production ZIP (use this for deploy / Android wrapper)
+        uses: actions/upload-artifact@v4
+        with:
+          name: momentum-web-release
+          path: momentum-web-release.zip
+          if-no-files-found: error
